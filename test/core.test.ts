@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { test } from "vitest";
 
@@ -15,6 +18,7 @@ import {
   assertRelativePath,
   assertSlug,
   resolveInside,
+  sameCanonicalPath,
   sameJson,
   slugify,
   unique,
@@ -162,10 +166,24 @@ test("path and identifier utilities enforce portable workspace values", () => {
   assert.throws(() => assertRelativePath("/outside"), /relative path/);
   assert.throws(() => assertRelativePath("C:\\outside"), /relative path/);
   assert.throws(() => assertRelativePath("C:outside"), /relative path/);
-  assert.match(resolveInside("/tmp/workspace", "docs"), /workspace\/docs$/);
+  assert.equal(
+    resolveInside(path.join("tmp", "workspace"), "docs"),
+    path.resolve("tmp", "workspace", "docs"),
+  );
   assert.deepEqual(unique(["a", "b", "a"]), ["a", "b"]);
   assert.equal(sameJson({ a: 1 }, { a: 1 }), true);
   assert.equal(sameJson({ a: 1 }, { a: 2 }), false);
+});
+
+test("existing path identity survives child-process path aliases", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "braingraph-path-"));
+  const childPath = run(
+    process.execPath,
+    ["-e", "process.stdout.write(process.cwd())"],
+    { cwd: directory },
+  ).stdout;
+
+  assert.equal(sameCanonicalPath(directory, childPath), true);
 });
 
 test("subprocess helpers report failures and quote review output", () => {

@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { test } from "vitest";
 
+import { sameCanonicalPath } from "../src/util.js";
+
 import {
   parseJsonObject,
   runCli,
@@ -182,12 +184,10 @@ test("QMD execution is workspace-local and idempotent", async () => {
     .split("\n")
     .map(parseJsonObject);
   assert.ok(calls.length > 0);
-  const canonicalWorkspace = fs.realpathSync(workspace);
   assert.ok(
     calls.every(
       (call) =>
-        typeof call.cwd === "string" &&
-        fs.realpathSync(call.cwd) === canonicalWorkspace,
+        typeof call.cwd === "string" && sameCanonicalPath(call.cwd, workspace),
     ),
   );
   assert.equal(

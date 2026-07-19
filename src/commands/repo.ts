@@ -734,11 +734,11 @@ function isLocalRepositoryPath(value: string): boolean {
 }
 
 function validateCheckout(value: string): string {
-  const candidate = fs.realpathSync(path.resolve(value));
+  const candidate = fs.realpathSync.native(path.resolve(value));
   if (!fs.statSync(candidate).isDirectory()) {
     throw new UsageError(`checkout is not a directory: ${candidate}`);
   }
-  const root = fs.realpathSync(
+  const root = fs.realpathSync.native(
     gitOutput(candidate, ["rev-parse", "--show-toplevel"]),
   );
   if (!sameCanonicalPath(root, candidate)) {

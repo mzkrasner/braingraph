@@ -19,7 +19,7 @@ import type {
   OutputStream,
   RepositoryConfig,
 } from "../types.js";
-import { assertCanonicalPathInside } from "../util.js";
+import { assertCanonicalPathInside, sameCanonicalPath } from "../util.js";
 
 import { MINIMUM_QMD_VERSION, supportedQmdVersion } from "./qmd.js";
 import { isObsidianInstalled } from "./tools.js";
@@ -559,7 +559,7 @@ function attachedRepositoryChecks(
     check(
       `repository:${id}:attached-git-root`,
       rootResult.status === 0 &&
-        canonicalPath(rootResult.stdout.trim()) === canonicalPath(checkout)
+        sameCanonicalPath(rootResult.stdout.trim(), checkout)
         ? "ok"
         : "error",
       checkout,
@@ -619,7 +619,8 @@ function qmdCollectionMatches(
   const pathMatch = /^\s*Path:\s+(.+)$/m.exec(stdout)?.[1]?.trim();
   const patternMatch = /^\s*Pattern:\s+(.+)$/m.exec(stdout)?.[1]?.trim();
   return (
-    canonicalPath(pathMatch ?? "") === canonicalPath(vault) &&
+    pathMatch !== undefined &&
+    sameCanonicalPath(pathMatch, vault) &&
     patternMatch === mask
   );
 }
@@ -639,14 +640,6 @@ function qmdContextMatches(
   const section =
     nextCollection === -1 ? following : following.slice(0, nextCollection);
   return section.some((line) => line.trim() === description.trim());
-}
-
-function canonicalPath(value: string): string {
-  try {
-    return fs.realpathSync(value);
-  } catch {
-    return path.resolve(value);
-  }
 }
 
 function artifactCheck(

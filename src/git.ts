@@ -46,10 +46,10 @@ export function refExists(anchor: string, ref: string): boolean {
 
 /** Parses the registered worktrees reported by Git porcelain output. */
 export function registeredWorktrees(anchor: string): RegisteredWorktree[] {
-  const output = gitOutput(anchor, ["worktree", "list", "--porcelain"]);
+  const output = gitOutput(anchor, ["worktree", "list", "--porcelain", "-z"]);
   const entries: RegisteredWorktree[] = [];
   let current: RegisteredWorktree | undefined;
-  for (const line of output.split("\n")) {
+  for (const line of output.split("\0")) {
     if (line.startsWith("worktree ")) {
       current = { path: line.slice("worktree ".length) };
       entries.push(current);

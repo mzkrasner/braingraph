@@ -64,7 +64,7 @@ export function assertRelativePath(
 /** Validates a knowledge directory that cannot collide with workspace state. */
 export function assertKnowledgeDirectoryPath(value: string): string {
   const normalized = assertRelativePath(value, "knowledge directory");
-  const firstSegment = normalized.split(path.sep)[0];
+  const firstSegment = normalized.split("/")[0];
   if (
     normalized === "." ||
     firstSegment === undefined ||
@@ -143,7 +143,7 @@ export function formatPath(value: string): string {
 export function canonicalPath(value: string): string {
   let canonical: string;
   try {
-    canonical = fs.realpathSync(value);
+    canonical = fs.realpathSync.native(value);
   } catch {
     canonical = path.resolve(value);
   }
@@ -151,9 +151,21 @@ export function canonicalPath(value: string): string {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
-/** Compares filesystem paths using the current platform's path semantics. */
+/** Compares paths by canonical spelling and, when possible, filesystem identity. */
 export function sameCanonicalPath(left: string, right: string): boolean {
-  return canonicalPath(left) === canonicalPath(right);
+  if (canonicalPath(left) === canonicalPath(right)) return true;
+
+  try {
+    const leftStats = fs.statSync(left, { bigint: true });
+    const rightStats = fs.statSync(right, { bigint: true });
+    return (
+      leftStats.ino !== 0n &&
+      leftStats.dev === rightStats.dev &&
+      leftStats.ino === rightStats.ino
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isSlug(value: string): boolean {
@@ -177,7 +189,7 @@ function canonicalizeProspectivePath(candidate: string): string {
   for (;;) {
     try {
       fs.lstatSync(current);
-      const canonical = fs.realpathSync(current);
+      const canonical = fs.realpathSync.native(current);
       return path.resolve(canonical, ...missing.reverse());
     } catch (error: unknown) {
       if (!isMissingPathError(error)) {
