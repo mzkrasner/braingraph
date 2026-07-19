@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { test } from "vitest";
 
@@ -15,6 +18,7 @@ import {
   assertRelativePath,
   assertSlug,
   resolveInside,
+  sameCanonicalPath,
   sameJson,
   slugify,
   unique,
@@ -90,7 +94,7 @@ test("manifest validation reports malformed workspace boundaries", () => {
   assert.ok(errors.some((error) => error.includes("templateVersion")));
   assert.ok(errors.some((error) => error.includes("workspace.name")));
   assert.ok(errors.some((error) => error.includes("workspace.slug")));
-  assert.ok(errors.some((error) => error.includes("knowledge.directory")));
+  assert.ok(errors.some((error) => error.includes("knowledge directory")));
   assert.ok(errors.some((error) => error.includes("externalSystems entries")));
   assert.ok(errors.some((error) => error.includes("repository Bad")));
 });
@@ -157,12 +161,29 @@ test("path and identifier utilities enforce portable workspace values", () => {
   assert.throws(() => assertSlug("Example"), /lowercase letters/);
   assert.throws(() => slugify("---"), /cannot derive a slug/);
   assert.equal(assertRelativePath("docs/notes"), "docs/notes");
+  assert.equal(assertRelativePath("docs\\notes"), "docs/notes");
   assert.throws(() => assertRelativePath("../outside"), /remain inside/);
   assert.throws(() => assertRelativePath("/outside"), /relative path/);
-  assert.match(resolveInside("/tmp/workspace", "docs"), /workspace\/docs$/);
+  assert.throws(() => assertRelativePath("C:\\outside"), /relative path/);
+  assert.throws(() => assertRelativePath("C:outside"), /relative path/);
+  assert.equal(
+    resolveInside(path.join("tmp", "workspace"), "docs"),
+    path.resolve("tmp", "workspace", "docs"),
+  );
   assert.deepEqual(unique(["a", "b", "a"]), ["a", "b"]);
   assert.equal(sameJson({ a: 1 }, { a: 1 }), true);
   assert.equal(sameJson({ a: 1 }, { a: 2 }), false);
+});
+
+test("existing path identity survives child-process path aliases", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "braingraph-path-"));
+  const childPath = run(
+    process.execPath,
+    ["-e", "process.stdout.write(process.cwd())"],
+    { cwd: directory },
+  ).stdout;
+
+  assert.equal(sameCanonicalPath(directory, childPath), true);
 });
 
 test("subprocess helpers report failures and quote review output", () => {
@@ -193,6 +214,11 @@ test("subprocess helpers report failures and quote review output", () => {
     },
   );
   assert.equal(captured.stdout, "captured");
+  const normalized = run(process.execPath, [
+    "-e",
+    "process.stdout.write('first\\r\\nsecond\\rthird')",
+  ]);
+  assert.equal(normalized.stdout, "first\nsecond\nthird");
   assert.equal(commandExists(process.execPath), true);
   assert.equal(
     commandExists("braingraph-command-that-does-not-exist", "win32"),

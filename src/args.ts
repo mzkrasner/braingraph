@@ -7,6 +7,7 @@ import type {
 } from "./types.js";
 
 const BOOLEAN_OPTIONS = new Set([
+  "bridge",
   "clone",
   "configure",
   "dry-run",

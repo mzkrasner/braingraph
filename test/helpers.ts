@@ -59,6 +59,39 @@ export function runGit(args: readonly string[], cwd: string): string {
   return result.stdout.trim();
 }
 
+/** Creates a synthetic PATH executable backed by Node on the current platform. */
+export function writeNodeExecutable(
+  directory: string,
+  name: string,
+  source: string,
+): void {
+  fs.mkdirSync(directory, { recursive: true });
+  if (process.platform === "win32") {
+    const program = path.join(directory, `${name}-fixture.cjs`);
+    fs.writeFileSync(program, source, "utf8");
+    fs.writeFileSync(
+      path.join(directory, `${name}.cmd`),
+      "@exit /b 1\r\n",
+      "utf8",
+    );
+    const node = process.execPath.replaceAll("'", "''");
+    fs.writeFileSync(
+      path.join(directory, `${name}.ps1`),
+      `& '${node}' (Join-Path $PSScriptRoot '${name}-fixture.cjs') @args\nexit $LASTEXITCODE\n`,
+      "utf8",
+    );
+    return;
+  }
+  fs.writeFileSync(
+    path.join(directory, name),
+    `#!/usr/bin/env node\n${source}`,
+    {
+      encoding: "utf8",
+      mode: 0o755,
+    },
+  );
+}
+
 /**
  *
  */
@@ -66,9 +99,9 @@ export function createRemoteWithBranch(branch = "dev"): GitFixture {
   const root = temporaryDirectory("braingraph-git-");
   const remote = path.join(root, "remote.git");
   const seed = path.join(root, "seed");
-  runGit(["init", "--bare", remote], root);
+  runGit(["init", "--bare", "--initial-branch", branch, remote], root);
   fs.mkdirSync(seed);
-  runGit(["init"], seed);
+  runGit(["init", "--initial-branch", branch], seed);
   runGit(["config", "user.name", "Synthetic Tester"], seed);
   runGit(["config", "user.email", "synthetic@example.invalid"], seed);
   runGit(["config", "commit.gpgSign", "false"], seed);

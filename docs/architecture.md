@@ -31,13 +31,15 @@ Profiles add behavior for a class of workspace. The first optional profile is `s
 ## Canonical State
 
 - `braingraph.json` owns workspace configuration and registered capabilities.
+- Ignored `braingraph.local.json` owns machine-local attachment paths and bridge choices. It must never become portable or canonical configuration.
 - Workspace sensitivity is the baseline handling policy; source-specific rules may be stricter.
 - `knowledge.maintenance` owns the default proposal-first or narrowly delegated local-maintenance boundary.
 - `schemaVersion` owns manifest compatibility; `templateVersion` records the generated instruction and template contract.
 - Markdown owns durable knowledge.
 - External systems continue to own their declared live state.
-- Obsidian workspace/UI state and QMD indexes are disposable local state.
+- Obsidian workspace/UI state, workspace-local `.qmd/` configuration and indexes, and shared QMD model caches are disposable local state.
 - Git repositories own source and branch state.
+- Repository hubs own durable Braingraph governance. Managed anchors/worktrees and attached checkout paths remain ignored local state.
 - Temporary implementation artifacts stay outside the durable knowledge graph.
 - `AGENTS.md` and `.agents/skills` own agent behavior; client-specific discovery files are non-canonical adapters.
 

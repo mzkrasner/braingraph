@@ -13,7 +13,11 @@ import type {
   WorkspaceProfile,
   WorkspaceScope,
 } from "./types.js";
-import { assertRelativePath, assertSlug } from "./util.js";
+import {
+  assertKnowledgeDirectoryPath,
+  assertRelativePath,
+  assertSlug,
+} from "./util.js";
 
 export const MANIFEST_NAME = "braingraph.json";
 export const SCHEMA_VERSION = 1;
@@ -274,7 +278,13 @@ function validateKnowledge(value: unknown, errors: string[]): void {
     "knowledge",
     errors,
   );
-  validateRelativePath(value.directory, "knowledge.directory", errors);
+  try {
+    assertKnowledgeDirectoryPath(
+      typeof value.directory === "string" ? value.directory : "",
+    );
+  } catch (error: unknown) {
+    errors.push(errorMessage(error));
+  }
   validateMaintenance(value.maintenance, errors);
 
   const obsidian = value.obsidian;
@@ -527,35 +537,57 @@ function validateRepositories(
       errors.push(`repository ${id} must be an object`);
       continue;
     }
-    validateRecordKeys(
-      value,
-      [
-        "url",
-        "path",
-        "integrationBranch",
-        "productionBranch",
-        "stableWorktree",
-        "branchPrefix",
-      ],
-      `repository ${id}`,
-      errors,
-    );
-    validateRelativePath(value.path, `repository ${id} path`, errors);
-    if (typeof value.url !== "string" || value.url.length === 0) {
-      errors.push(`repository ${id} requires url`);
-    }
-    if (
-      typeof value.integrationBranch !== "string" ||
-      value.integrationBranch.length === 0
-    ) {
-      errors.push(`repository ${id} requires integrationBranch`);
-    }
-    if (
-      value.productionBranch !== null &&
-      typeof value.productionBranch !== "string"
-    ) {
-      errors.push(`repository ${id} has invalid productionBranch`);
-    }
+    validateRepositoryBase(id, value, errors);
+    validateRepositoryMode(id, value, errors);
+  }
+}
+
+function validateRepositoryBase(
+  id: string,
+  value: Record<string, unknown>,
+  errors: string[],
+): void {
+  validateRecordKeys(
+    value,
+    [
+      "mode",
+      "url",
+      "path",
+      "integrationBranch",
+      "productionBranch",
+      "stableWorktree",
+      "branchPrefix",
+    ],
+    `repository ${id}`,
+    errors,
+  );
+  if (value.mode !== "managed" && value.mode !== "attached") {
+    errors.push(`repository ${id} has invalid mode`);
+  }
+  validateRelativePath(value.path, `repository ${id} path`, errors);
+  if (typeof value.url !== "string" || value.url.length === 0) {
+    errors.push(`repository ${id} requires url`);
+  }
+  if (
+    typeof value.integrationBranch !== "string" ||
+    value.integrationBranch.length === 0
+  ) {
+    errors.push(`repository ${id} requires integrationBranch`);
+  }
+  if (
+    value.productionBranch !== null &&
+    typeof value.productionBranch !== "string"
+  ) {
+    errors.push(`repository ${id} has invalid productionBranch`);
+  }
+}
+
+function validateRepositoryMode(
+  id: string,
+  value: Record<string, unknown>,
+  errors: string[],
+): void {
+  if (value.mode === "managed") {
     validateSlug(
       value.stableWorktree,
       `repository ${id} stableWorktree`,
@@ -564,6 +596,13 @@ function validateRepositories(
     if (typeof value.branchPrefix !== "string") {
       errors.push(`repository ${id} requires branchPrefix`);
     }
+    return;
+  }
+  if (value.stableWorktree !== undefined) {
+    errors.push(`attached repository ${id} cannot define stableWorktree`);
+  }
+  if (value.branchPrefix !== undefined) {
+    errors.push(`attached repository ${id} cannot define branchPrefix`);
   }
 }
 

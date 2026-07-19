@@ -43,7 +43,7 @@ export function renderTemplateTree(options: RenderTemplateTreeOptions): void {
       .relative(source, file)
       .replace(/(^|[/\\])gitignore\.template$/, "$1.gitignore");
     const target = path.join(destination, relative);
-    const content = render(fs.readFileSync(file, "utf8"), replacements);
+    const content = render(readTemplate(file), replacements);
     plan.writeMissing(target, content);
   }
 }
@@ -54,7 +54,11 @@ export function templateContent(
   replacements: Replacements = {},
 ): string {
   const file = path.join(TEMPLATE_ROOT, relative);
-  return render(fs.readFileSync(file, "utf8"), replacements);
+  return render(readTemplate(file), replacements);
+}
+
+function readTemplate(file: string): string {
+  return fs.readFileSync(file, "utf8").replaceAll("\r\n", "\n");
 }
 
 /** Converts manifest include globs into QMD's collection mask syntax. */
@@ -79,6 +83,11 @@ export function knowledgeReplacements(
 ): Replacements {
   return {
     ...rootReplacements(manifest),
+    WORKSPACE_ROOT_RELATIVE:
+      path
+        .relative(manifest.knowledge.directory, ".")
+        .split(path.sep)
+        .join("/") || ".",
     QMD_RETRIEVAL_SECTION: qmdRetrievalSection(manifest),
     QMD_START_SECTION: qmdStartSection(manifest),
   };
@@ -100,5 +109,5 @@ function qmdStartSection(manifest: WorkspaceManifest): string {
 }
 
 function softwareRootSection(): string {
-  return `## Software Profile\n\nRead \`braingraph.json\` before assuming software repositories are part of this workspace. When the \`software\` profile is enabled, configured repositories live under \`repositories/\` as worktree hubs. Read each hub's \`AGENTS.md\`, then the selected worktree's repository-native instructions. Use isolated feature worktrees for edits and stable integration worktrees only for orientation. Cleanup is inspection-first, refuses dirty worktrees and unpushed commits, requires exact human confirmation, and never deletes branches implicitly. When the profile is absent, do not introduce repository or worktree structure without human approval.`;
+  return `## Software Profile\n\nRead \`braingraph.json\` before assuming software repositories are part of this workspace. When the \`software\` profile is enabled, configured repositories live under \`repositories/\` as managed-worktree or attached-checkout hubs. Read each hub's \`AGENTS.md\`, then the selected checkout's repository-native instructions. Use isolated feature worktrees for managed implementation and stable integration worktrees only for orientation. Cleanup is inspection-first, refuses dirty worktrees and unpushed commits, requires exact human confirmation, and never deletes branches implicitly. Attached checkout locations and local discovery bridges are machine-local state, not durable workspace configuration. When the profile is absent, do not introduce repository or worktree structure without human approval.`;
 }

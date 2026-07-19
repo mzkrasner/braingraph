@@ -39,13 +39,36 @@ export interface ExternalSystem {
   notes?: string;
 }
 
-export interface RepositoryConfig {
+interface RepositoryConfigBase {
+  mode: "managed" | "attached";
   url: string;
   path: string;
   integrationBranch: string;
   productionBranch: string | null;
+}
+
+export interface ManagedRepositoryConfig extends RepositoryConfigBase {
+  mode: "managed";
   stableWorktree: string;
   branchPrefix: string;
+}
+
+export interface AttachedRepositoryConfig extends RepositoryConfigBase {
+  mode: "attached";
+}
+
+export type RepositoryConfig =
+  ManagedRepositoryConfig | AttachedRepositoryConfig;
+
+export interface LocalWorkspaceState {
+  schemaVersion: 1;
+  attachments: Record<
+    string,
+    {
+      checkoutPath: string;
+      bridge: boolean;
+    }
+  >;
 }
 
 export interface WorkspaceManifest {
@@ -151,6 +174,12 @@ export interface WorktreeProcess {
   cwd: string;
 }
 
-export interface WorktreeInspectionWithProcesses extends WorktreeInspection {
+export interface WorktreeProcessInspection {
+  status: "clear" | "in-use" | "unknown";
   processes: WorktreeProcess[];
+  reason?: string;
+}
+
+export interface WorktreeInspectionWithProcesses extends WorktreeInspection {
+  processInspection: WorktreeProcessInspection;
 }

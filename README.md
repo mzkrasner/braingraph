@@ -95,7 +95,7 @@ braingraph tools install [directory] [--dry-run | --execute]
 braingraph obsidian open [directory] [--dry-run | --execute]
 braingraph qmd configure|refresh [directory] [options]
 braingraph system add|update <id> [options]
-braingraph repo add <id> [options]
+braingraph repo add|attach|remove <id> [options]
 braingraph worktree new <repository> <name> [options]
 braingraph worktree inspect <repository> <name> [--json]
 braingraph worktree remove <repository> <name> [options]
@@ -126,9 +126,20 @@ See `docs/obsidian-and-qmd.md` for the shared Obsidian/QMD boundary and `docs/ex
 
 ## Software Profile
 
-The software profile adds repository hubs and guarded worktree commands. It does not prescribe a `dev`/`main` branch model; each repository declares its own integration and production branches.
+The software profile adds repository governance hubs and two explicit integration modes. It does not prescribe a `dev`/`main` branch model; each repository declares its own integration and optional production branch.
+
+- `repo add` creates a Braingraph-managed bare anchor, stable integration worktree, and isolated feature-worktree hub.
+- `repo attach` registers an existing checkout without rewriting its Git layout. Portable identity stays in `braingraph.json`; the absolute checkout path stays in ignored, permission-restricted `braingraph.local.json`.
+- An attachment can create ignored local `AGENTS.md` and `CLAUDE.md` discovery bridges. Use `--no-bridge` when repository-native root instructions already exist, then connect those instructions to the canonical workspace deliberately.
+- `repo remove` deregisters either mode only after exact confirmation. It preserves hubs, checkouts, bridges, worktrees, and branches so recovery remains possible.
+
+Every remote and branch is validated before registration. Managed Git internals and child worktrees are ignored by the outer workspace repository while hub governance files remain trackable.
 
 Worktree cleanup is inspection-first and never automatic. Removal requires a clean worktree, an exact confirmation token, an allowed reason, and `--execute`. It does not delete branches or use force removal.
+
+Destructive removal also requires a positive process-safety check. Braingraph uses `lsof` on macOS and Linux and fails closed when inspection is unavailable; Windows currently supports inspection and dry-run but not `--execute` removal because no equivalent built-in process check is available.
+
+See [`docs/repositories.md`](docs/repositories.md) for setup, attachment, portability, and recovery details.
 
 ## Ongoing Knowledge Loop
 

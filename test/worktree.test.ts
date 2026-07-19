@@ -200,19 +200,23 @@ test("software profile creates, inspects, and safely removes an isolated worktre
     "--reason",
     "no-longer-needed",
   ]);
-  assert.equal(remove.status, 0, remove.stderr);
-  assert.equal(fs.existsSync(feature), false);
-
-  const recreate = await runCli([
-    "worktree",
-    "new",
-    "app",
-    "feature-one",
-    "--workspace",
-    workspace,
-    "--no-fetch",
-  ]);
-  assert.equal(recreate.status, 0, recreate.stderr);
+  if (process.platform === "win32") {
+    assert.equal(remove.status, 2);
+    assert.match(remove.stderr, /could not verify/);
+  } else {
+    assert.equal(remove.status, 0, remove.stderr);
+    assert.equal(fs.existsSync(feature), false);
+    const recreate = await runCli([
+      "worktree",
+      "new",
+      "app",
+      "feature-one",
+      "--workspace",
+      workspace,
+      "--no-fetch",
+    ]);
+    assert.equal(recreate.status, 0, recreate.stderr);
+  }
   assert.ok(fs.existsSync(feature));
 
   const duplicatePath = await runCli([
@@ -248,6 +252,7 @@ test("repository registration requires the software profile and supports dry-run
   assert.match(unsupported.stderr, /software profile is not enabled/);
 
   const softwareWorkspace = path.join(temporaryDirectory(), "software");
+  const fixture = createRemoteWithBranch("main");
   assert.equal(
     (
       await runCli([
@@ -268,7 +273,7 @@ test("repository registration requires the software profile and supports dry-run
     "--workspace",
     softwareWorkspace,
     "--url",
-    "https://example.invalid/app.git",
+    fixture.remote,
     "--integration-branch",
     "main",
     "--dry-run",
@@ -283,6 +288,7 @@ test("repository registration requires the software profile and supports dry-run
 
 test("worktree creation protects stable names and requires a cloned anchor", async () => {
   const workspace = path.join(temporaryDirectory(), "workspace");
+  const fixture = createRemoteWithBranch("main");
   assert.equal(
     (
       await runCli([
@@ -305,7 +311,7 @@ test("worktree creation protects stable names and requires a cloned anchor", asy
         "--workspace",
         workspace,
         "--url",
-        "https://example.invalid/app.git",
+        fixture.remote,
         "--integration-branch",
         "main",
         "--no-clone",
@@ -336,6 +342,85 @@ test("worktree creation protects stable names and requires a cloned anchor", asy
   assert.equal(missingAnchor.status, 2);
   assert.match(missingAnchor.stderr, /missing Git anchor/);
 });
+
+test.skipIf(process.platform === "win32")(
+  "worktree removal refuses to proceed when process inspection is inconclusive",
+  async () => {
+    const root = temporaryDirectory();
+    const workspace = path.join(root, "workspace");
+    const fixture = createRemoteWithBranch("main");
+    assert.equal(
+      (
+        await runCli([
+          "init",
+          workspace,
+          "--name",
+          "Process Safety",
+          "--profile",
+          "software",
+        ])
+      ).status,
+      0,
+    );
+    assert.equal(
+      (
+        await runCli([
+          "repo",
+          "add",
+          "app",
+          "--workspace",
+          workspace,
+          "--url",
+          fixture.remote,
+          "--integration-branch",
+          "main",
+        ])
+      ).status,
+      0,
+    );
+    assert.equal(
+      (
+        await runCli([
+          "worktree",
+          "new",
+          "app",
+          "feature",
+          "--workspace",
+          workspace,
+        ])
+      ).status,
+      0,
+    );
+    const feature = path.join(workspace, "repositories", "app", "feature");
+    const bin = path.join(root, "bin");
+    fs.mkdirSync(bin);
+    fs.writeFileSync(
+      path.join(bin, "lsof"),
+      "#!/bin/sh\nprintf 'inspection unavailable\\n' >&2\nexit 2\n",
+      { encoding: "utf8", mode: 0o755 },
+    );
+
+    const result = await runCli(
+      [
+        "worktree",
+        "remove",
+        "app",
+        "feature",
+        "--workspace",
+        workspace,
+        "--execute",
+        "--confirm",
+        "app/feature",
+        "--reason",
+        "no-longer-needed",
+      ],
+      { env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` } },
+    );
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /could not verify/);
+    assert.ok(fs.existsSync(feature));
+  },
+);
 
 test("worktree removal protects the stable integration worktree", async () => {
   const workspace = path.join(temporaryDirectory(), "workspace");
@@ -447,6 +532,23 @@ test("a repository registered without cloning can be cloned later", async () => 
   assert.equal(unchanged.status, 0, unchanged.stderr);
   assert.match(unchanged.stdout, /Stable worktree already exists/);
 
+  fs.renameSync(fixture.remote, `${fixture.remote}.offline`);
+  const offlineIdempotent = await runCli([
+    "repo",
+    "add",
+    "app",
+    "--workspace",
+    workspace,
+    "--url",
+    fixture.remote,
+    "--integration-branch",
+    "main",
+    "--no-clone",
+  ]);
+  assert.equal(offlineIdempotent.status, 0, offlineIdempotent.stderr);
+  assert.match(offlineIdempotent.stdout, /Repository unchanged/);
+
+  const differentFixture = createRemoteWithBranch("main");
   const conflict = await runCli([
     "repo",
     "add",
@@ -454,7 +556,7 @@ test("a repository registered without cloning can be cloned later", async () => 
     "--workspace",
     workspace,
     "--url",
-    "https://example.invalid/different.git",
+    differentFixture.remote,
     "--integration-branch",
     "main",
   ]);
@@ -603,8 +705,14 @@ test("worktree removal refuses unpushed commits but allows a published recovery 
 
   runGit(["push", "-u", "origin", "work/local-change"], feature);
   const removed = await runCli(removal);
-  assert.equal(removed.status, 0, removed.stderr);
-  assert.equal(fs.existsSync(feature), false);
+  if (process.platform === "win32") {
+    assert.equal(removed.status, 2);
+    assert.match(removed.stderr, /could not verify/);
+    assert.ok(fs.existsSync(feature));
+  } else {
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.equal(fs.existsSync(feature), false);
+  }
   const anchor = path.join(workspace, "repositories", "app", ".bare");
   assert.equal(
     runGit(["show-ref", "--verify", "refs/heads/work/local-change"], anchor)

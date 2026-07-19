@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import {
   booleanOption,
   listOption,
@@ -289,6 +291,7 @@ function writeValidatedManifestUpdate(
   const errors = validateManifest(manifest);
   if (errors.length > 0) throw new UsageError(errors.join("; "));
   const plan = new ActionPlan({
+    root: path.dirname(file),
     dryRun: booleanOption(options, "dry-run"),
     output: context.output ?? process.stdout,
   });

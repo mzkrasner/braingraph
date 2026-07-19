@@ -13,12 +13,13 @@ import { loadWorkspace } from "../manifest.js";
 import { commandExists, displayCommand, run } from "../process.js";
 import type {
   CommandContext,
+  ManagedRepositoryConfig,
   OptionMap,
   OutputStream,
-  RepositoryConfig,
+  ProcessResult,
   WorktreeInspection,
   WorktreeInspectionWithProcesses,
-  WorktreeProcess,
+  WorktreeProcessInspection,
   WorkspaceManifest,
 } from "../types.js";
 import { assertSlug } from "../util.js";
@@ -31,6 +32,7 @@ const REMOVAL_REASONS = [
   "no-longer-needed",
 ] as const;
 const REPOSITORY_ID_LABEL = "repository id";
+const WORKTREE_NAME_LABEL = "worktree name";
 const ORIGIN_REMOTE = "origin";
 
 export const WORKTREE_HELP = `Usage:
@@ -76,7 +78,7 @@ export function worktreeNewCommand(
   if (positionals.length !== 2)
     throw new UsageError("worktree new requires repository id and name");
   const repositoryId = assertSlug(positionals[0], REPOSITORY_ID_LABEL);
-  const name = assertSlug(positionals[1], "worktree name");
+  const name = assertSlug(positionals[1], WORKTREE_NAME_LABEL);
   const workspace = loadWorkspace(
     stringOption(options, "workspace") ?? process.cwd(),
   );
@@ -135,8 +137,8 @@ export function worktreeInspectCommand(
   if (positionals.length !== 2)
     throw new UsageError("worktree inspect requires repository id and name");
   const inspection = inspectConfiguredWorktree(positionals, options);
-  const processes = processesUsing(inspection.path);
-  const result = { ...inspection, processes };
+  const processInspection = inspectProcessesUsing(inspection.path);
+  const result = { ...inspection, processInspection };
   if (booleanOption(options, "json"))
     output.write(`${JSON.stringify(result, null, 2)}\n`);
   else printInspection(result, output);
@@ -165,23 +167,13 @@ export function worktreeRemoveCommand(
   if (positionals.length !== 2)
     throw new UsageError("worktree remove requires repository id and name");
   const inspection = inspectConfiguredWorktree(positionals, options);
-  const processes = processesUsing(inspection.path);
-  const result = { ...inspection, processes };
+  const processInspection = inspectProcessesUsing(inspection.path);
+  const result = { ...inspection, processInspection };
   printInspection(result, output);
-
-  if (!inspection.registered)
-    throw new UsageError("path is not a registered worktree");
-  if (!inspection.clean)
-    throw new UsageError(
-      "worktree is dirty; preserve or resolve changes before cleanup",
-    );
-  if (inspection.currentProcessInside)
-    throw new UsageError("the current process is inside the worktree");
-  if (processes.length > 0)
-    throw new UsageError("processes are using the worktree");
-  if (positionals[1] === inspection.stableWorktree)
-    throw new UsageError("stable integration worktrees are protected");
-  assertRecoverableBranchState(inspection);
+  assertSafeRemoval(
+    inspection,
+    assertSlug(positionals[1], WORKTREE_NAME_LABEL),
+  );
 
   const execute = booleanOption(options, "execute");
   const dryRun = booleanOption(options, "dry-run");
@@ -191,17 +183,10 @@ export function worktreeRemoveCommand(
     );
     return 0;
   }
-  const confirmation = stringOption(options, "confirm");
-  const reason = stringOption(options, "reason");
-  if (confirmation !== inspection.identifier) {
-    throw new UsageError(
-      `--confirm must exactly match ${inspection.identifier}`,
-    );
-  }
-  if (reason === undefined || !isRemovalReason(reason)) {
-    throw new UsageError(
-      `--reason must be one of: ${REMOVAL_REASONS.join(", ")}`,
-    );
+  assertRemovalConfirmation(options, inspection.identifier);
+  if (!dryRun) {
+    assertProcessClear(processInspection, "verify");
+    assertFinalProcessClear(inspection.path);
   }
 
   const workspace = loadWorkspace(
@@ -222,6 +207,69 @@ export function worktreeRemoveCommand(
     `${dryRun ? "[dry-run] would preserve" : "Preserved"} branch: ${inspection.branch ?? "(detached)"}\n`,
   );
   return 0;
+}
+
+function assertSafeRemoval(inspection: WorktreeInspection, name: string): void {
+  if (!inspection.registered) {
+    throw new UsageError("path is not a registered worktree");
+  }
+  if (!inspection.clean) {
+    throw new UsageError(
+      "worktree is dirty; preserve or resolve changes before cleanup",
+    );
+  }
+  if (inspection.currentProcessInside) {
+    throw new UsageError("the current process is inside the worktree");
+  }
+  if (name === inspection.stableWorktree) {
+    throw new UsageError("stable integration worktrees are protected");
+  }
+  assertRecoverableBranchState(inspection);
+}
+
+function assertRemovalConfirmation(
+  options: OptionMap,
+  identifier: string,
+): void {
+  if (stringOption(options, "confirm") !== identifier) {
+    throw new UsageError(`--confirm must exactly match ${identifier}`);
+  }
+  const reason = stringOption(options, "reason");
+  if (reason === undefined || !isRemovalReason(reason)) {
+    throw new UsageError(
+      `--reason must be one of: ${REMOVAL_REASONS.join(", ")}`,
+    );
+  }
+}
+
+function assertFinalProcessClear(worktreePath: string): void {
+  const inspection = inspectProcessesUsing(worktreePath);
+  assertProcessClear(inspection, "re-verify");
+}
+
+function assertProcessClear(
+  inspection: WorktreeProcessInspection,
+  verb: string,
+): void {
+  assertKnownProcessState(inspection, verb);
+  if (inspection.status === "in-use") {
+    throw new UsageError(
+      verb === "re-verify"
+        ? "processes began using the worktree before removal"
+        : "processes are using the worktree",
+    );
+  }
+}
+
+function assertKnownProcessState(
+  inspection: WorktreeProcessInspection,
+  verb: string,
+): void {
+  if (inspection.status === "unknown") {
+    throw new UsageError(
+      `could not ${verb} whether processes are using the worktree: ${inspection.reason ?? "inspection unavailable"}`,
+    );
+  }
 }
 
 function assertRecoverableBranchState(inspection: WorktreeInspection): void {
@@ -248,7 +296,7 @@ function inspectConfiguredWorktree(
   options: OptionMap,
 ): WorktreeInspection {
   const repositoryId = assertSlug(positionals[0], REPOSITORY_ID_LABEL);
-  const name = assertSlug(positionals[1], "worktree name");
+  const name = assertSlug(positionals[1], WORKTREE_NAME_LABEL);
   const workspace = loadWorkspace(
     stringOption(options, "workspace") ?? process.cwd(),
   );
@@ -264,11 +312,16 @@ function inspectConfiguredWorktree(
 function getRepository(
   manifest: WorkspaceManifest,
   id: string,
-): RepositoryConfig {
+): ManagedRepositoryConfig {
   const repository = Object.entries(manifest.repositories).find(
     ([repositoryId]) => repositoryId === id,
   )?.[1];
   if (!repository) throw new UsageError(`unknown repository: ${id}`);
+  if (repository.mode !== "managed") {
+    throw new UsageError(
+      `repository ${id} is an attached checkout; managed worktree commands are unavailable`,
+    );
+  }
   return repository;
 }
 
@@ -287,12 +340,53 @@ function isRemovalReason(
   return REMOVAL_REASONS.some((reason) => reason === value);
 }
 
-function processesUsing(worktreePath: string): WorktreeProcess[] {
-  if (process.platform === "win32" || !commandExists("lsof")) return [];
-  const result = run("lsof", ["-a", "-d", "cwd", "-Fpn"], {
-    allowFailure: true,
-  });
-  const matches: WorktreeProcess[] = [];
+/** Inspects whether another process has its working directory inside a worktree. */
+export function inspectProcessesUsing(
+  worktreePath: string,
+  platform: NodeJS.Platform = process.platform,
+): WorktreeProcessInspection {
+  if (platform === "win32") {
+    return unknownProcessInspection(
+      "process working-directory inspection is unavailable on Windows",
+    );
+  }
+  if (!commandExists("lsof", platform)) {
+    return unknownProcessInspection("lsof is not installed or not executable");
+  }
+  try {
+    const result = run("lsof", ["-a", "-d", "cwd", "-Fpn"], {
+      allowFailure: true,
+    });
+    return processInspectionFromLsof(result, worktreePath);
+  } catch (error: unknown) {
+    return unknownProcessInspection(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+/** Converts captured lsof output into a worktree process inspection. */
+export function processInspectionFromLsof(
+  result: ProcessResult,
+  worktreePath: string,
+): WorktreeProcessInspection {
+  if (
+    result.status !== 0 &&
+    !(
+      result.status === 1 &&
+      result.stdout.trim() === "" &&
+      result.stderr.trim() === ""
+    )
+  ) {
+    return unknownProcessInspection(
+      (result.stderr || result.stdout).trim() ||
+        `lsof exited with status ${String(result.status)}`,
+    );
+  }
+  if (result.stderr.trim().length > 0) {
+    return unknownProcessInspection(result.stderr.trim());
+  }
+  const processes: WorktreeProcessInspection["processes"] = [];
   let pid: string | null = null;
   for (const line of result.stdout.split("\n")) {
     if (line.startsWith("p")) pid = line.slice(1);
@@ -303,11 +397,18 @@ function processesUsing(worktreePath: string): WorktreeProcess[] {
         relative === "" ||
         (!relative.startsWith("..") && !path.isAbsolute(relative))
       ) {
-        matches.push({ pid, cwd });
+        processes.push({ pid, cwd });
       }
     }
   }
-  return matches;
+  return {
+    status: processes.length > 0 ? "in-use" : "clear",
+    processes,
+  };
+}
+
+function unknownProcessInspection(reason: string): WorktreeProcessInspection {
+  return { status: "unknown", processes: [], reason };
 }
 
 function printInspection(
@@ -331,7 +432,15 @@ function printInspection(
     `  Commits not in integration branch: ${String(inspection.commitsNotInIntegrationBranch ?? "unknown")}\n`,
   );
   output.write(
-    `  Processes using worktree: ${String(inspection.processes.length)}\n`,
+    `  Process inspection: ${inspection.processInspection.status}\n`,
   );
+  output.write(
+    `  Processes using worktree: ${String(inspection.processInspection.processes.length)}\n`,
+  );
+  if (inspection.processInspection.reason !== undefined) {
+    output.write(
+      `  Process inspection detail: ${inspection.processInspection.reason}\n`,
+    );
+  }
   output.write("  Branch deletion: not performed\n");
 }

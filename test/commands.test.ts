@@ -5,10 +5,12 @@ import path from "node:path";
 import { test } from "vitest";
 
 import {
+  createRemoteWithBranch,
   parseJsonObject,
   readWorkspaceManifest,
   runCli,
   temporaryDirectory,
+  writeNodeExecutable,
 } from "./helpers.js";
 
 const HELP_COMMANDS = [
@@ -21,6 +23,8 @@ const HELP_COMMANDS = [
   ["system", "add", "--help"],
   ["system", "update", "--help"],
   ["repo", "add", "--help"],
+  ["repo", "attach", "--help"],
+  ["repo", "remove", "--help"],
   ["worktree", "new", "--help"],
   ["worktree", "inspect", "--help"],
   ["worktree", "remove", "--help"],
@@ -71,11 +75,12 @@ test("doctor warns when a registered QMD collection targets different content", 
     0,
   );
   const bin = path.join(root, "bin");
-  fs.mkdirSync(bin);
-  fs.writeFileSync(
-    path.join(bin, "qmd"),
-    "#!/bin/sh\nprintf 'Path: /different\\nPattern: **/*.md\\n'\n",
-    { encoding: "utf8", mode: 0o755 },
+  fs.mkdirSync(path.join(workspace, ".qmd"));
+  fs.writeFileSync(path.join(workspace, ".qmd", "index.yml"), "version: 1\n");
+  writeNodeExecutable(
+    bin,
+    "qmd",
+    'if (process.argv.includes("--version")) console.log("qmd 2.5.3");\nelse console.log("Path: /different\\nPattern: **/*.md");\n',
   );
   const result = await runCli(["doctor", workspace], {
     env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
@@ -130,12 +135,8 @@ test("doctor fails when a required generated artifact is missing", async () => {
 test("tool installation can be reviewed without executing package managers", async () => {
   const root = temporaryDirectory();
   const bin = path.join(root, "bin");
-  fs.mkdirSync(bin);
   for (const command of ["npm", "brew"]) {
-    fs.writeFileSync(path.join(bin, command), "#!/bin/sh\nexit 0\n", {
-      encoding: "utf8",
-      mode: 0o755,
-    });
+    writeNodeExecutable(bin, command, "process.exit(0);\n");
   }
 
   const result = await runCli(["tools", "install", "--dry-run"], {
@@ -190,6 +191,7 @@ test("doctor reports optional QMD absence as a warning", async () => {
 test("doctor inspects configured software repository hubs", async () => {
   const root = temporaryDirectory();
   const workspace = path.join(root, "workspace");
+  const fixture = createRemoteWithBranch("main");
   assert.equal(
     (
       await runCli([
@@ -212,7 +214,7 @@ test("doctor inspects configured software repository hubs", async () => {
         "--workspace",
         workspace,
         "--url",
-        "https://example.invalid/app.git",
+        fixture.remote,
         "--integration-branch",
         "main",
         "--no-clone",
@@ -252,8 +254,8 @@ test("tool and QMD commands report missing execution prerequisites", async () =>
   const plannedQmd = await runCli(["qmd", "refresh", workspace, "--dry-run"], {
     env: { PATH: "/usr/bin:/bin" },
   });
-  assert.equal(plannedQmd.status, 0, plannedQmd.stderr);
-  assert.match(plannedQmd.stdout, /qmd update/);
+  assert.equal(plannedQmd.status, 2);
+  assert.match(plannedQmd.stderr, /workspace-local QMD index/);
 
   const missingQmd = await runCli(["qmd", "refresh", workspace], {
     env: { PATH: "/usr/bin:/bin" },
@@ -274,17 +276,18 @@ function createFakeQmd(
   contextOverride?: string,
 ): string {
   const bin = path.join(root, "bin");
-  fs.mkdirSync(bin);
   const vault = path.join(workspace, "Knowledge");
   const manifest = readWorkspaceManifest(workspace);
   const collection = manifest.knowledge.qmd.collection;
   const description = contextOverride ?? manifest.workspace.description;
   const mask =
     "{projects/**/*.md,domains/**/*.md,wiki/**/*.md,reports/**/*.md}";
-  fs.writeFileSync(
-    path.join(bin, "qmd"),
-    `#!/bin/sh\nif [ "$1" = "collection" ] && [ "$2" = "show" ]; then\n  printf 'Collection: %s\\n  Path: %s\\n  Pattern: %s\\n' '${collection}' '${vault}' '${mask}'\nelif [ "$1" = "context" ] && [ "$2" = "list" ]; then\n  printf '%s\\n  / (root)\\n    %s\\n' '${collection}' '${description}'\nfi\n`,
-    { encoding: "utf8", mode: 0o755 },
+  fs.mkdirSync(path.join(workspace, ".qmd"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, ".qmd", "index.yml"), "version: 1\n");
+  writeNodeExecutable(
+    bin,
+    "qmd",
+    `const args = process.argv.slice(2);\nif (args[0] === "--version") console.log("qmd 2.5.3");\nelse if (args[0] === "collection" && args[1] === "show") console.log(${JSON.stringify(`Collection: ${collection}\n  Path: ${vault}\n  Pattern: ${mask}`)});\nelse if (args[0] === "context" && args[1] === "list") console.log(${JSON.stringify(`${collection}\n  / (root)\n    ${description}`)});\nelse if (args[0] === "doctor") console.log("healthy");\nelse if (args[0] === "status") console.log("indexed");\n`,
   );
   return bin;
 }

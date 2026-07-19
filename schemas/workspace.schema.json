@@ -61,7 +61,7 @@
       "required": ["directory", "maintenance", "obsidian", "qmd"],
       "additionalProperties": false,
       "properties": {
-        "directory": { "type": "string", "minLength": 1 },
+        "directory": { "$ref": "#/$defs/knowledgeDirectory" },
         "maintenance": {
           "type": "object",
           "required": ["mode"],
@@ -73,10 +73,14 @@
           "allOf": [
             {
               "if": {
+                "type": "object",
                 "properties": { "mode": { "const": "delegated" } },
                 "required": ["mode"]
               },
-              "then": { "required": ["delegatedScope"] },
+              "then": {
+                "properties": { "delegatedScope": {} },
+                "required": ["delegatedScope"]
+              },
               "else": { "not": { "required": ["delegatedScope"] } }
             }
           ]
@@ -100,6 +104,7 @@
             "include": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
               "uniqueItems": true
             }
           }
@@ -108,10 +113,14 @@
     },
     "externalSystems": {
       "type": "array",
+      "$comment": "External-system id uniqueness is enforced by the runtime validator because JSON Schema cannot express uniqueness by one object property.",
       "items": { "$ref": "#/$defs/externalSystem" }
     },
     "repositories": {
       "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
       "additionalProperties": { "$ref": "#/$defs/repository" }
     }
   },
@@ -194,19 +203,26 @@
       "allOf": [
         {
           "if": {
+            "type": "object",
             "properties": {
               "access": {
+                "type": "object",
                 "properties": { "write": { "const": "delegated" } },
                 "required": ["write"]
               }
             }
           },
-          "then": { "required": ["writeScope"] }
+          "then": {
+            "properties": { "writeScope": {} },
+            "required": ["writeScope"]
+          }
         },
         {
           "if": {
+            "type": "object",
             "properties": {
               "access": {
+                "type": "object",
                 "properties": { "write": { "const": "delegated" } },
                 "required": ["write"]
               }
@@ -219,24 +235,63 @@
     "repository": {
       "type": "object",
       "required": [
+        "mode",
         "url",
         "path",
         "integrationBranch",
-        "stableWorktree",
-        "branchPrefix"
+        "productionBranch"
       ],
       "additionalProperties": false,
       "properties": {
+        "mode": { "enum": ["managed", "attached"] },
         "url": { "type": "string", "minLength": 1 },
-        "path": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/relativePath" },
         "integrationBranch": { "type": "string", "minLength": 1 },
         "productionBranch": { "type": ["string", "null"] },
         "stableWorktree": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
-        "branchPrefix": { "type": "string" }
-      }
+        "branchPrefix": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": { "mode": { "const": "managed" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": { "stableWorktree": {}, "branchPrefix": {} },
+            "required": ["stableWorktree", "branchPrefix"]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["stableWorktree"] },
+                { "required": ["branchPrefix"] }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\\\/])(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+    },
+    "knowledgeDirectory": {
+      "allOf": [
+        { "$ref": "#/$defs/relativePath" },
+        { "not": { "const": "." } },
+        {
+          "not": {
+            "type": "string",
+            "pattern": "^(?:\\.agents|\\.git|\\.qmd|AGENTS\\.md|CLAUDE\\.md|braingraph\\.json|braingraph\\.local\\.json|repositories|schemas)(?:[\\\\/]|$)"
+          }
+        }
+      ]
     }
   }
 }

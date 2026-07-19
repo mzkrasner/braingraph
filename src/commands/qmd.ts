@@ -7,15 +7,19 @@ import { loadWorkspace } from "../manifest.js";
 import { commandExists, displayCommand, run } from "../process.js";
 import { qmdMask } from "../templates.js";
 import type { CommandContext, OutputStream, ProcessOptions } from "../types.js";
+import { assertCanonicalPathInside, sameCanonicalPath } from "../util.js";
+
+export const MINIMUM_QMD_VERSION = "2.5.3";
+const SUPPORTED_QMD_MAJOR = 2;
 
 export const QMD_HELP = `Usage:
   braingraph qmd configure [directory] [--no-embed] [--dry-run]
   braingraph qmd refresh [directory] [--embed] [--dry-run]
 
-configure registers the vault collection, installs QMD's canonical agent skill into
-the workspace .agents/skills catalog, adds or updates workspace-purpose context,
-indexes Markdown, and embeds by default. refresh updates the index and embeds only
-when --embed is supplied.
+configure creates a workspace-local QMD index, registers the vault collection,
+installs QMD's canonical agent skill into the workspace .agents/skills catalog,
+adds or updates workspace-purpose context, indexes Markdown, and embeds by default.
+refresh updates only that local index and embeds only when --embed is supplied.
 Dry runs remain available before QMD is installed.`;
 
 /** Registers and initially indexes the configured QMD collection. */
@@ -33,9 +37,11 @@ export function qmdConfigureCommand(
   if (positionals.length > 1)
     throw new UsageError("qmd configure accepts at most one directory");
   const workspace = loadWorkspace(positionals[0] ?? process.cwd());
+  assertQmdDestinations(workspace.root, true);
   const dryRun = booleanOption(options, "dry-run");
   const qmdAvailable = commandExists("qmd");
   if (!dryRun && !qmdAvailable) ensureQmd();
+  if (qmdAvailable) assertSupportedQmdVersion(workspace.root);
   const embed = booleanOption(options, "embed", true);
   const qmd = workspace.manifest.knowledge.qmd;
   const vault = path.join(
@@ -43,12 +49,18 @@ export function qmdConfigureCommand(
     workspace.manifest.knowledge.directory,
   );
   const mask = qmdMask(qmd.include);
+  const hasLocalIndex = localQmdConfig(workspace.root) !== undefined;
+  if (!hasLocalIndex) {
+    executeOrPrint("qmd", ["init"], dryRun, output, workspace.root);
+  }
 
-  const existing = qmdAvailable
-    ? run("qmd", ["collection", "show", qmd.collection], {
-        allowFailure: true,
-      })
-    : undefined;
+  const existing =
+    qmdAvailable && hasLocalIndex
+      ? run("qmd", ["collection", "show", qmd.collection], {
+          allowFailure: true,
+          cwd: workspace.root,
+        })
+      : undefined;
   if (existing?.status === 0) {
     assertMatchingCollection(existing.stdout, vault, mask, qmd.collection);
     output.write(`QMD collection already matches: ${qmd.collection}\n`);
@@ -58,6 +70,7 @@ export function qmdConfigureCommand(
       ["collection", "add", vault, "--name", qmd.collection, "--mask", mask],
       dryRun,
       output,
+      workspace.root,
     );
   }
 
@@ -71,11 +84,18 @@ export function qmdConfigureCommand(
     ],
     dryRun,
     output,
+    workspace.root,
   );
-  executeOrPrint("qmd", ["skill", "install"], dryRun, output, workspace.root);
-  executeOrPrint("qmd", ["update"], dryRun, output);
+  ensureQmdSkill(workspace.root, dryRun, output);
+  executeOrPrint("qmd", ["update"], dryRun, output, workspace.root);
   if (embed)
-    executeOrPrint("qmd", ["embed", "-c", qmd.collection], dryRun, output);
+    executeOrPrint(
+      "qmd",
+      ["embed", "-c", qmd.collection],
+      dryRun,
+      output,
+      workspace.root,
+    );
   return 0;
 }
 
@@ -94,16 +114,119 @@ export function qmdRefreshCommand(
   if (positionals.length > 1)
     throw new UsageError("qmd refresh accepts at most one directory");
   const workspace = loadWorkspace(positionals[0] ?? process.cwd());
+  assertQmdDestinations(workspace.root, false);
   const dryRun = booleanOption(options, "dry-run");
   if (!dryRun) ensureQmd();
-  executeOrPrint("qmd", ["update"], dryRun, output);
+  if (commandExists("qmd")) assertSupportedQmdVersion(workspace.root);
+  if (localQmdConfig(workspace.root) === undefined) {
+    throw new UsageError(
+      "workspace-local QMD index is not configured; run braingraph qmd configure first",
+    );
+  }
+  executeOrPrint("qmd", ["update"], dryRun, output, workspace.root);
   if (booleanOption(options, "embed")) {
     executeOrPrint(
       "qmd",
       ["embed", "-c", workspace.manifest.knowledge.qmd.collection],
       dryRun,
       output,
+      workspace.root,
     );
+  }
+  return 0;
+}
+
+/** Returns the installed QMD version when it satisfies Braingraph's contract. */
+export function supportedQmdVersion(cwd: string): string | undefined {
+  if (!commandExists("qmd")) return undefined;
+  const result = run("qmd", ["--version"], { allowFailure: true, cwd });
+  if (result.status !== 0) return undefined;
+  const match = /qmd\s+(\d+)\.(\d+)\.(\d+)/i.exec(result.stdout);
+  if (match === null) return undefined;
+  const version = [
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+  ] as const;
+  if (
+    version[0] !== SUPPORTED_QMD_MAJOR ||
+    compareVersion(version, parseVersion(MINIMUM_QMD_VERSION)) < 0
+  ) {
+    return undefined;
+  }
+  return version.join(".");
+}
+
+function assertSupportedQmdVersion(cwd: string): void {
+  if (supportedQmdVersion(cwd) === undefined) {
+    throw new UsageError(
+      `QMD ${MINIMUM_QMD_VERSION} or newer within major version ${String(SUPPORTED_QMD_MAJOR)} is required`,
+    );
+  }
+}
+
+function localQmdConfig(workspaceRoot: string): string | undefined {
+  return ["index.yml", "index.yaml"]
+    .map((name) => path.join(workspaceRoot, ".qmd", name))
+    .find((candidate) => fs.existsSync(candidate));
+}
+
+function ensureQmdSkill(
+  workspaceRoot: string,
+  dryRun: boolean,
+  output: OutputStream,
+): void {
+  const skill = path.join(
+    workspaceRoot,
+    ".agents",
+    "skills",
+    "qmd",
+    "SKILL.md",
+  );
+  if (fs.existsSync(skill)) {
+    if (!fs.statSync(skill).isFile()) {
+      throw new UsageError(`QMD skill path is not a file: ${skill}`);
+    }
+    const content = fs.readFileSync(skill, "utf8");
+    if (
+      !/^name:\s*qmd$/m.test(content) ||
+      !content.includes("qmd skill show")
+    ) {
+      throw new UsageError(
+        `existing QMD skill is not the expected version-matched bootstrap: ${skill}`,
+      );
+    }
+    output.write(`QMD skill already matches: ${skill}\n`);
+    return;
+  }
+  output.write(
+    `${dryRun ? "[dry-run] " : ""}${displayCommand("qmd", ["skill", "install"])}\n`,
+  );
+  if (dryRun) return;
+  const result = run("qmd", ["skill", "install"], {
+    cwd: workspaceRoot,
+    allowFailure: true,
+  });
+  output.write(result.stdout);
+  if (result.status !== 0) {
+    throw new UsageError(
+      result.stderr.trim() || "QMD skill installation failed",
+    );
+  }
+}
+
+function parseVersion(value: string): readonly [number, number, number] {
+  const parts = value.split(".").map(Number);
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
+}
+
+function compareVersion(
+  left: readonly [number, number, number],
+  right: readonly [number, number, number],
+): number {
+  for (const [index, leftPart] of left.entries()) {
+    const difference = leftPart - (right.at(index) ?? 0);
+    if (difference !== 0) return difference;
   }
   return 0;
 }
@@ -141,7 +264,8 @@ function assertMatchingCollection(
   const pathMatch = /^\s*Path:\s+(.+)$/m.exec(stdout)?.[1]?.trim();
   const patternMatch = /^\s*Pattern:\s+(.+)$/m.exec(stdout)?.[1]?.trim();
   if (
-    canonicalPath(pathMatch ?? "") !== canonicalPath(vault) ||
+    pathMatch === undefined ||
+    !sameCanonicalPath(pathMatch, vault) ||
     patternMatch !== mask
   ) {
     throw new UsageError(
@@ -150,10 +274,27 @@ function assertMatchingCollection(
   }
 }
 
-function canonicalPath(value: string): string {
-  try {
-    return fs.realpathSync(value);
-  } catch {
-    return path.resolve(value);
+function assertQmdDestinations(
+  workspaceRoot: string,
+  includeSkill: boolean,
+): void {
+  assertCanonicalPathInside(
+    workspaceRoot,
+    path.join(workspaceRoot, ".qmd"),
+    "QMD workspace state",
+  );
+  for (const name of ["index.yml", "index.yaml"]) {
+    assertCanonicalPathInside(
+      workspaceRoot,
+      path.join(workspaceRoot, ".qmd", name),
+      "QMD index destination",
+    );
+  }
+  if (includeSkill) {
+    assertCanonicalPathInside(
+      workspaceRoot,
+      path.join(workspaceRoot, ".agents", "skills", "qmd", "SKILL.md"),
+      "QMD skill destination",
+    );
   }
 }
