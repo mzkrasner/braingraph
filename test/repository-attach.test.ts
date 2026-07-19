@@ -4,7 +4,8 @@ import path from "node:path";
 
 import { test } from "vitest";
 
-import { validateLocalState } from "../src/local-state.js";
+import { loadLocalState, validateLocalState } from "../src/local-state.js";
+import { sameCanonicalPath } from "../src/util.js";
 
 import {
   createRemoteWithBranch,
@@ -58,10 +59,10 @@ test("an existing checkout can be attached without changing its Git layout", asy
   });
   assert.equal(JSON.stringify(repository).includes(checkout), false);
 
-  const local = parseJsonObject(
-    fs.readFileSync(path.join(workspace, "braingraph.local.json"), "utf8"),
-  );
-  assert.equal(JSON.stringify(local).includes(checkout), true);
+  const local = loadLocalState(workspace);
+  const attachment = local.attachments.app;
+  assert.ok(attachment);
+  assert.equal(sameCanonicalPath(attachment.checkoutPath, checkout), true);
   if (process.platform !== "win32") {
     assert.equal(
       fs.statSync(path.join(workspace, "braingraph.local.json")).mode & 0o777,
@@ -90,9 +91,7 @@ test("an existing checkout can be attached without changing its Git layout", asy
     false,
   );
 
-  const doctor = await runCli(["doctor", workspace], {
-    env: { PATH: "/usr/bin:/bin" },
-  });
+  const doctor = await runCli(["doctor", workspace]);
   assert.equal(doctor.status, 0, doctor.stderr);
   assert.match(doctor.stdout, /repository:app:attached-checkout/);
 
@@ -234,9 +233,7 @@ test("no-bridge attachment respects repository-native instructions", async () =>
   );
   assert.equal(fs.existsSync(path.join(checkout, "CLAUDE.md")), false);
 
-  const doctor = await runCli(["doctor", workspace], {
-    env: { PATH: "/usr/bin:/bin" },
-  });
+  const doctor = await runCli(["doctor", workspace]);
   assert.equal(doctor.status, 0, doctor.stderr);
   assert.match(doctor.stdout, /local-agent-discovery/);
   assert.match(doctor.stdout, /bridge disabled/);
