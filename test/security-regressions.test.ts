@@ -5,7 +5,10 @@ import path from "node:path";
 import { test, vi } from "vitest";
 
 import { assertSafeRepositoryUrl } from "../src/commands/repo.js";
-import { inspectProcessesUsing } from "../src/commands/worktree.js";
+import {
+  inspectProcessesUsing,
+  processInspectionFromLsof,
+} from "../src/commands/worktree.js";
 import { writeJsonAtomic } from "../src/files.js";
 import { commandExists, resolveCommandInvocation } from "../src/process.js";
 
@@ -310,6 +313,50 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+test("lsof process output is parsed independently of the host platform", () => {
+  const root = temporaryDirectory();
+  const worktree = path.join(root, "worktree");
+  const child = path.join(worktree, "child");
+  const unrelated = path.join(root, "unrelated");
+
+  assert.deepEqual(
+    processInspectionFromLsof({ status: 1, stdout: "", stderr: "" }, worktree),
+    { status: "clear", processes: [] },
+  );
+
+  const failed = processInspectionFromLsof(
+    { status: 2, stdout: "", stderr: "permission denied\n" },
+    worktree,
+  );
+  assert.equal(failed.status, "unknown");
+  assert.match(failed.reason ?? "", /permission denied/);
+
+  const warned = processInspectionFromLsof(
+    { status: 0, stdout: "", stderr: "unexpected warning\n" },
+    worktree,
+  );
+  assert.equal(warned.status, "unknown");
+  assert.match(warned.reason ?? "", /unexpected warning/);
+
+  assert.deepEqual(
+    processInspectionFromLsof(
+      {
+        status: 0,
+        stdout: `p123\nn${child}\np456\nn${unrelated}\np789\nn${worktree}\n`,
+        stderr: "",
+      },
+      worktree,
+    ),
+    {
+      status: "in-use",
+      processes: [
+        { pid: "123", cwd: child },
+        { pid: "789", cwd: worktree },
+      ],
+    },
+  );
+});
 
 test("worktree process inspection fails closed on unsupported platforms", () => {
   const inspection = inspectProcessesUsing("C:\\synthetic-worktree", "win32");

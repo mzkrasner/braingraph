@@ -365,7 +365,8 @@ export function inspectProcessesUsing(
   }
 }
 
-function processInspectionFromLsof(
+/** Converts captured lsof output into a worktree process inspection. */
+export function processInspectionFromLsof(
   result: ProcessResult,
   worktreePath: string,
 ): WorktreeProcessInspection {
