@@ -10,6 +10,12 @@ const machineSpecificPathPatterns = [
   /\/home\/[^/\s"']+\//,
   /[A-Za-z]:\\Users\\[^\\\s"']+\\/,
 ];
+const claudeAdapters = [
+  "CLAUDE.md",
+  "templates/core/CLAUDE.md",
+  "templates/core/Knowledge/CLAUDE.md",
+  "templates/software/repository-CLAUDE.md",
+];
 
 for (const file of filesUnder(root)) {
   const relative = path.relative(root, file);
@@ -22,6 +28,19 @@ for (const file of filesUnder(root)) {
     }
     if (content.includes(unresolvedTemplateMarker))
       failures.push(`${relative}: contains an unresolved TODO template`);
+  }
+}
+
+for (const relative of claudeAdapters) {
+  const file = path.join(root, relative);
+  if (!fs.existsSync(file)) {
+    failures.push(`${relative}: missing Claude instruction adapter`);
+    continue;
+  }
+  if (
+    fs.readFileSync(file, "utf8").replaceAll("\r\n", "\n") !== "@AGENTS.md\n"
+  ) {
+    failures.push(`${relative}: must contain only @AGENTS.md`);
   }
 }
 

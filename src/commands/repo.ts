@@ -164,6 +164,10 @@ function scaffoldRepositoryHub(
       INTEGRATION_BRANCH: repository.stableWorktree,
     }),
   );
+  plan.writeMissing(
+    path.join(hub, "CLAUDE.md"),
+    templateContent("software/repository-CLAUDE.md"),
+  );
 }
 
 function ensureRepositoryClone(options: CloneRepositoryOptions): void {

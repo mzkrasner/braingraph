@@ -21,6 +21,13 @@ import { isObsidianInstalled } from "./tools.js";
 
 type CheckStatus = "ok" | "warning" | "error";
 
+const CLAUDE_ADAPTER_CONTENT = "@AGENTS.md\n";
+const VENDOR_SKILL_DIRECTORIES = [
+  ".claude/skills",
+  ".cursor/skills",
+  ".grok/skills",
+] as const;
+
 interface DoctorCheck {
   name: string;
   status: CheckStatus;
@@ -55,7 +62,9 @@ export function doctorCommand(
   );
   const checks = [
     manifestCheck(workspace),
+    ...instructionScopeChecks("workspace", workspace.root),
     ...vaultChecks(vault),
+    ...skillCatalogChecks(workspace.root),
     obsidianCheck(),
     ...qmdChecks(workspace, vault),
     ...softwareChecks(workspace),
@@ -87,9 +96,7 @@ function manifestCheck(workspace: LoadedWorkspace): DoctorCheck {
 
 function vaultChecks(vault: string): DoctorCheck[] {
   const relativePaths = [
-    "../AGENTS.md",
     "../schemas/braingraph-workspace.schema.json",
-    "AGENTS.md",
     "Start Here.md",
     "index.md",
     "log.md",
@@ -114,14 +121,17 @@ function vaultChecks(vault: string): DoctorCheck[] {
     ".obsidian/core-plugins.json",
     ".obsidian/templates.json",
   ];
-  const checks = relativePaths.map((relative) => {
-    const target = path.join(vault, relative);
-    return check(
-      `vault:${relative}`,
-      fs.existsSync(target) ? "ok" : "error",
-      target,
-    );
-  });
+  const checks = [
+    ...instructionScopeChecks("knowledge", vault),
+    ...relativePaths.map((relative) => {
+      const target = path.join(vault, relative);
+      return check(
+        `vault:${relative}`,
+        fs.existsSync(target) ? "ok" : "error",
+        target,
+      );
+    }),
+  ];
   checks.push(...placeholderChecks(vault));
   return checks;
 }
@@ -132,21 +142,94 @@ function placeholderChecks(vault: string): DoctorCheck[] {
     ["vault-instructions", path.join(vault, "AGENTS.md")],
     ["start-here", path.join(vault, "Start Here.md")],
   ];
-  return files.map(([label, file]) => {
-    if (!fs.existsSync(file)) {
-      return check(
-        `template-placeholders:${label}`,
-        "error",
-        `missing: ${file}`,
-      );
-    }
+  return files.flatMap(([label, file]) => {
+    if (!isFile(file)) return [];
     const unresolved = /\{\{[A-Z0-9_]+\}\}/.test(fs.readFileSync(file, "utf8"));
-    return check(
-      `template-placeholders:${label}`,
-      unresolved ? "error" : "ok",
-      unresolved ? `unresolved placeholder in ${file}` : file,
-    );
+    return [
+      check(
+        `template-placeholders:${label}`,
+        unresolved ? "error" : "ok",
+        unresolved ? `unresolved placeholder in ${file}` : file,
+      ),
+    ];
   });
+}
+
+function instructionScopeChecks(
+  scope: string,
+  directory: string,
+): DoctorCheck[] {
+  const canonical = path.join(directory, "AGENTS.md");
+  const adapter = path.join(directory, "CLAUDE.md");
+  const adapterMatches =
+    isFile(adapter) &&
+    fs.readFileSync(adapter, "utf8").replaceAll("\r\n", "\n") ===
+      CLAUDE_ADAPTER_CONTENT;
+  return [
+    check(
+      `instructions:${scope}:canonical`,
+      isFile(canonical) ? "ok" : "error",
+      canonical,
+    ),
+    check(
+      `instructions:${scope}:claude-adapter`,
+      adapterMatches ? "ok" : "error",
+      adapterMatches
+        ? `${adapter} imports AGENTS.md`
+        : `${adapter} must contain only @AGENTS.md`,
+    ),
+  ];
+}
+
+function skillCatalogChecks(workspaceRoot: string): DoctorCheck[] {
+  const canonicalDirectory = path.join(workspaceRoot, ".agents", "skills");
+  const canonicalSkills = skillNames(canonicalDirectory);
+  if (canonicalSkills.length === 0) return [];
+
+  const duplicates = VENDOR_SKILL_DIRECTORIES.flatMap((relative) => {
+    const mirrored = new Set(skillNames(path.join(workspaceRoot, relative)));
+    return canonicalSkills
+      .filter((name) => mirrored.has(name))
+      .map((name) => `${relative}/${name}`);
+  });
+  return [
+    check(
+      "agent-skills:canonical-catalog",
+      "ok",
+      `${canonicalSkills.length.toString()} skill(s) in ${canonicalDirectory}`,
+    ),
+    check(
+      "agent-skills:vendor-mirrors",
+      duplicates.length === 0 ? "ok" : "warning",
+      duplicates.length === 0
+        ? "no duplicate client-specific skill names"
+        : `duplicate canonical skill names: ${duplicates.join(", ")}`,
+    ),
+  ];
+}
+
+function skillNames(directory: string): string[] {
+  if (!isDirectory(directory)) return [];
+  return fs
+    .readdirSync(directory)
+    .filter((name) => isFile(path.join(directory, name, "SKILL.md")))
+    .sort();
+}
+
+function isFile(candidate: string): boolean {
+  try {
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function isDirectory(candidate: string): boolean {
+  try {
+    return fs.statSync(candidate).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function obsidianCheck(): DoctorCheck {
@@ -250,7 +333,6 @@ function repositoryChecks(
 ): DoctorCheck[] {
   const hub = path.join(workspaceRoot, repository.path);
   const anchor = path.join(hub, ".bare");
-  const instructions = path.join(hub, "AGENTS.md");
   const stable = path.join(hub, repository.stableWorktree);
   const stableExists = fs.existsSync(stable);
   const checks = [
@@ -260,11 +342,7 @@ function repositoryChecks(
       fs.existsSync(anchor) ? "ok" : "warning",
       anchor,
     ),
-    check(
-      `repository:${id}:instructions`,
-      fs.existsSync(instructions) ? "ok" : "error",
-      instructions,
-    ),
+    ...instructionScopeChecks(`repository:${id}`, hub),
     check(
       `repository:${id}:stable-worktree`,
       stableExists ? "ok" : "warning",

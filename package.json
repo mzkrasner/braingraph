@@ -30,10 +30,17 @@
     "schemas/",
     "docs/",
     ".agents/skills/",
+    "AGENTS.md",
+    "CLAUDE.md",
     "README.md"
   ],
   "keywords": [
     "agents",
+    "agent-skills",
+    "claude-code",
+    "codex",
+    "cursor",
+    "grok-build",
     "knowledge-management",
     "markdown",
     "obsidian",

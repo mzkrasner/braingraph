@@ -10,6 +10,15 @@ This directory is the coordination root for the {{WORKSPACE_NAME}} Braingraph wo
 3. Read `{{KNOWLEDGE_DIR}}/AGENTS.md` before changing knowledge, taxonomy, source-processing state, or retrieval configuration.
 4. Verify volatile information in the external system that owns it before reporting it as current.
 
+## Agent Client Contract
+
+- Each scoped `AGENTS.md` is the canonical standing instruction file for its directory. Nested files intentionally add narrower context.
+- Each sibling `CLAUDE.md` is only a Claude Code discovery bridge and must contain exactly `@AGENTS.md`.
+- `.agents/skills/<skill>/SKILL.md` is the only canonical project skill catalog. Do not copy skill bodies into `.claude/skills/`, `.cursor/skills/`, or `.grok/skills/`.
+- Codex, Cursor, and Grok Build discover the canonical instructions and skills directly. Claude Code imports the instructions through `CLAUDE.md`.
+- If the active client does not natively list `.agents/skills`, enumerate their `SKILL.md` files, inspect the frontmatter, and read the complete matching skill before acting.
+- Client-specific files may adapt discovery only. Never place independent workspace policy in an adapter.
+
 ## Sources Of Truth
 
 `braingraph.json` declares baseline workspace sensitivity, the local knowledge-maintenance policy, and external systems with their ownership, access, freshness, capture, and sensitivity rules. Do not infer a system's role from familiarity with the vendor.

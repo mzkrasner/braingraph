@@ -14,6 +14,7 @@ Braingraph does not bundle an AI model or lock knowledge inside a proprietary da
 - Agent instructions for provenance, source ownership, privacy, maintenance, and taxonomy evolution.
 - Vendor-neutral contracts for issue trackers, file stores, messaging, CRMs, and other external systems.
 - An optional software profile for repository coordination and guarded Git worktree management.
+- A single-source agent contract for Codex, Claude Code, Cursor, and Grok Build.
 
 ## Use Cases
 
@@ -70,6 +71,20 @@ Ask an agent working in this repository:
 The agent must follow `.agents/skills/setup-braingraph/SKILL.md`: understand the intended scope, identify privacy and external-system boundaries, propose a setup, obtain approval, run a dry run, and only then create the workspace.
 
 Setup is also a product-learning surface. Agents should identify repeatable friction or assumptions that fail to generalize, distinguish those gaps from local configuration problems, and prepare a structured issue for [Braingraph Issues](https://github.com/mzkrasner/braingraph/issues). They must search for duplicates, remove machine-specific or sensitive context, show the draft to the user, and obtain explicit approval before filing it.
+
+## Agent Compatibility
+
+Braingraph uses one canonical instruction and skill model across supported coding agents:
+
+- Scoped `AGENTS.md` files own standing instructions.
+- `.agents/skills/<skill>/SKILL.md` owns reusable project-skill behavior.
+- Import-only `CLAUDE.md` files let Claude Code consume the matching `AGENTS.md` without copied policy.
+- Codex, Cursor, and Grok Build use both canonical locations directly.
+- Claude Code uses the import bridge and follows the same skill-loading protocol.
+
+Braingraph does not generate parallel `.cursor/rules`, `.claude/skills`, or `.grok/skills` catalogs. This avoids policy drift and duplicate skill discovery while preserving the same natural-language workflows across clients. Vendor-specific slash-menu parity is intentionally secondary to semantic compatibility.
+
+See [`docs/agent-compatibility.md`](docs/agent-compatibility.md) for the complete contract and verification guidance.
 
 ## Commands
 

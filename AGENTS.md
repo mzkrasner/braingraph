@@ -13,6 +13,15 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
 - Use only fictional, non-sensitive fixtures and examples.
 - Never add machine-specific paths, credentials, organization-specific policy, or live user data to templates.
 
+## Cross-Agent Contract
+
+- Treat each scoped `AGENTS.md` as the canonical standing instruction file for that directory. Nested files intentionally add narrower scope; they are not copies of the root rules.
+- Keep every sibling `CLAUDE.md` as the exact import-only bridge `@AGENTS.md`. Do not add independent policy there.
+- Treat `.agents/skills/<skill>/SKILL.md` as the only canonical project skill catalog. Do not mirror skill bodies into `.claude/skills/`, `.cursor/skills/`, or `.grok/skills/`.
+- Codex, Cursor, and Grok Build discover the canonical instruction and skill locations directly. Claude Code reaches the same instructions through `CLAUDE.md`.
+- If the active client does not natively surface `.agents/skills`, list the available `SKILL.md` files, inspect their frontmatter, and load the complete matching skill before acting. Native slash-menu parity is not required for semantic compatibility.
+- Tool-specific files may adapt discovery only. They must not become a second source of behavioral truth.
+
 ## Engineering Rules
 
 - Support Node.js 22 and later without runtime dependencies.

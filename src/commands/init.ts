@@ -329,6 +329,10 @@ function writeWorkspace(
     path.join(root, "AGENTS.md"),
     templateContent("core/AGENTS.md", rootReplacements(proposed)),
   );
+  plan.writeMissing(
+    path.join(root, "CLAUDE.md"),
+    templateContent("core/CLAUDE.md"),
+  );
   renderTemplateTree({
     source: path.join(TEMPLATE_ROOT, "core", "Knowledge"),
     destination: knowledgeRoot,

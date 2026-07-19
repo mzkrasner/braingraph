@@ -1,6 +1,6 @@
 # Start Here
 
-This is the {{WORKSPACE_NAME}} second brain. Its current purpose, scope, sensitivity, and maintenance boundary are declared in `../braingraph.json`. Obsidian is its configured human interface and QMD is its agent retrieval layer. Markdown files remain canonical and usable with any editor; agents follow `AGENTS.md`.
+This is the {{WORKSPACE_NAME}} second brain. Its current purpose, scope, sensitivity, and maintenance boundary are declared in `../braingraph.json`. Obsidian is its configured human interface and QMD is its agent retrieval layer. Markdown files remain canonical and usable with any editor; agents follow the scoped `AGENTS.md` files, with import-only client adapters where required.
 
 ## The Loop
 

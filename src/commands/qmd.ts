@@ -12,9 +12,10 @@ export const QMD_HELP = `Usage:
   braingraph qmd configure [directory] [--no-embed] [--dry-run]
   braingraph qmd refresh [directory] [--embed] [--dry-run]
 
-configure registers the vault collection, installs QMD's agent skill into the
-workspace, adds or updates workspace-purpose context, indexes Markdown, and embeds by
-default. refresh updates the index and embeds only when --embed is supplied.
+configure registers the vault collection, installs QMD's canonical agent skill into
+the workspace .agents/skills catalog, adds or updates workspace-purpose context,
+indexes Markdown, and embeds by default. refresh updates the index and embeds only
+when --embed is supplied.
 Dry runs remain available before QMD is installed.`;
 
 /** Registers and initially indexes the configured QMD collection. */

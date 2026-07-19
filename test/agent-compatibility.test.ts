@@ -1,0 +1,133 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+import { test } from "vitest";
+
+import { runCli, temporaryDirectory } from "./helpers.js";
+
+const CLAUDE_ADAPTER = "@AGENTS.md\n";
+
+test("init creates canonical instructions with import-only Claude adapters", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  const result = await runCli([
+    "init",
+    workspace,
+    "--name",
+    "Compatible Workspace",
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    fs.readFileSync(path.join(workspace, "CLAUDE.md"), "utf8"),
+    CLAUDE_ADAPTER,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(workspace, "Knowledge", "CLAUDE.md"), "utf8"),
+    CLAUDE_ADAPTER,
+  );
+  const instructions = fs.readFileSync(
+    path.join(workspace, "AGENTS.md"),
+    "utf8",
+  );
+  assert.match(instructions, /\.agents\/skills\/<skill>\/SKILL\.md/);
+  assert.match(
+    instructions,
+    /Codex, Cursor, and Grok Build discover the canonical instructions and skills directly/,
+  );
+});
+
+test("repository hubs receive the same canonical instruction contract", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  assert.equal(
+    (
+      await runCli([
+        "init",
+        workspace,
+        "--name",
+        "Software Workspace",
+        "--profile",
+        "software",
+      ])
+    ).status,
+    0,
+  );
+  const result = await runCli([
+    "repo",
+    "add",
+    "app",
+    "--workspace",
+    workspace,
+    "--url",
+    "https://example.invalid/app.git",
+    "--integration-branch",
+    "main",
+    "--no-clone",
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const hub = path.join(workspace, "repositories", "app");
+  assert.ok(fs.existsSync(path.join(hub, "AGENTS.md")));
+  assert.equal(
+    fs.readFileSync(path.join(hub, "CLAUDE.md"), "utf8"),
+    CLAUDE_ADAPTER,
+  );
+});
+
+test("doctor rejects instruction adapter drift", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  assert.equal(
+    (await runCli(["init", workspace, "--name", "Drift Example"])).status,
+    0,
+  );
+  fs.writeFileSync(
+    path.join(workspace, "CLAUDE.md"),
+    "@AGENTS.md\n\nUse different policy.\n",
+    "utf8",
+  );
+
+  const result = await runCli(["doctor", workspace], {
+    env: { PATH: "/usr/bin:/bin" },
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /instructions:workspace:claude-adapter/);
+  assert.match(result.stdout, /must contain only @AGENTS\.md/);
+});
+
+test("doctor reports a non-file instruction adapter without crashing", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  assert.equal(
+    (await runCli(["init", workspace, "--name", "Malformed Adapter"])).status,
+    0,
+  );
+  const adapter = path.join(workspace, "CLAUDE.md");
+  fs.rmSync(adapter);
+  fs.mkdirSync(adapter);
+
+  const result = await runCli(["doctor", workspace], {
+    env: { PATH: "/usr/bin:/bin" },
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /instructions:workspace:claude-adapter/);
+  assert.match(result.stdout, /must contain only @AGENTS\.md/);
+});
+
+test("doctor warns about duplicate vendor skill mirrors", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  assert.equal(
+    (await runCli(["init", workspace, "--name", "Skill Example"])).status,
+    0,
+  );
+  for (const root of [".agents/skills", ".claude/skills"]) {
+    const skill = path.join(workspace, root, "example", "SKILL.md");
+    fs.mkdirSync(path.dirname(skill), { recursive: true });
+    fs.writeFileSync(skill, "# Example\n", "utf8");
+  }
+
+  const result = await runCli(["doctor", workspace], {
+    env: { PATH: "/usr/bin:/bin" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /\[warning\] agent-skills:vendor-mirrors/);
+  assert.match(result.stdout, /\.claude\/skills\/example/);
+});
