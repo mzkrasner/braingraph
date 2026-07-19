@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { test } from "vitest";
 
-import { runCli, temporaryDirectory } from "./helpers.js";
+import {
+  createRemoteWithBranch,
+  runCli,
+  temporaryDirectory,
+} from "./helpers.js";
 
 const CLAUDE_ADAPTER = "@AGENTS.md\n";
 
@@ -52,6 +56,7 @@ test("repository hubs receive the same canonical instruction contract", async ()
     ).status,
     0,
   );
+  const fixture = createRemoteWithBranch("main");
   const result = await runCli([
     "repo",
     "add",
@@ -59,7 +64,7 @@ test("repository hubs receive the same canonical instruction contract", async ()
     "--workspace",
     workspace,
     "--url",
-    "https://example.invalid/app.git",
+    fixture.remote,
     "--integration-branch",
     "main",
     "--no-clone",

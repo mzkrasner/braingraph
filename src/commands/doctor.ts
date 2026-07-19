@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { booleanOption, parseArgs, rejectUnknownOptions } from "../args.js";
 import { UsageError } from "../errors.js";
+import { loadLocalState } from "../local-state.js";
 import {
   loadWorkspace,
   SCHEMA_VERSION,
@@ -14,9 +15,13 @@ import { qmdMask } from "../templates.js";
 import type {
   CommandContext,
   LoadedWorkspace,
+  LocalWorkspaceState,
   OutputStream,
+  RepositoryConfig,
 } from "../types.js";
+import { assertCanonicalPathInside } from "../util.js";
 
+import { MINIMUM_QMD_VERSION, supportedQmdVersion } from "./qmd.js";
 import { isObsidianInstalled } from "./tools.js";
 
 type CheckStatus = "ok" | "warning" | "error";
@@ -63,7 +68,17 @@ export function doctorCommand(
   const checks = [
     manifestCheck(workspace),
     ...instructionScopeChecks("workspace", workspace.root),
-    ...vaultChecks(vault),
+    artifactCheck(
+      "workspace:gitignore",
+      path.join(workspace.root, ".gitignore"),
+      "file",
+    ),
+    artifactCheck(
+      "workspace:schema",
+      path.join(workspace.root, "schemas", "braingraph-workspace.schema.json"),
+      "file",
+    ),
+    ...vaultChecks(workspace.root, vault),
     ...skillCatalogChecks(workspace.root),
     obsidianCheck(),
     ...qmdChecks(workspace, vault),
@@ -94,56 +109,63 @@ function manifestCheck(workspace: LoadedWorkspace): DoctorCheck {
   );
 }
 
-function vaultChecks(vault: string): DoctorCheck[] {
-  const relativePaths = [
-    "../schemas/braingraph-workspace.schema.json",
-    "Start Here.md",
-    "index.md",
-    "log.md",
-    "projects",
-    "domains",
-    "wiki",
-    "raw",
-    "raw/README.md",
-    "raw/processed",
-    "raw/attachments",
-    "sources",
-    "sources/Processing ledger.md",
-    "reports",
-    "evals/retrieval/README.md",
-    "_templates/Project.md",
-    "_templates/Domain.md",
-    "_templates/Knowledge.md",
-    "_templates/Source.md",
-    "_templates/Report.md",
-    ".gitignore",
-    ".obsidian/app.json",
-    ".obsidian/core-plugins.json",
-    ".obsidian/templates.json",
+function vaultChecks(workspaceRoot: string, vault: string): DoctorCheck[] {
+  const expected: readonly (readonly [string, "file" | "directory"])[] = [
+    ["Start Here.md", "file"],
+    ["index.md", "file"],
+    ["log.md", "file"],
+    ["projects", "directory"],
+    ["domains", "directory"],
+    ["wiki", "directory"],
+    ["raw", "directory"],
+    ["raw/README.md", "file"],
+    ["raw/processed", "directory"],
+    ["raw/attachments", "directory"],
+    ["sources", "directory"],
+    ["sources/Processing ledger.md", "file"],
+    ["reports", "directory"],
+    ["evals/retrieval/README.md", "file"],
+    ["_templates/Project.md", "file"],
+    ["_templates/Domain.md", "file"],
+    ["_templates/Knowledge.md", "file"],
+    ["_templates/Source.md", "file"],
+    ["_templates/Report.md", "file"],
+    [".gitignore", "file"],
+    [".obsidian", "directory"],
+    [".obsidian/app.json", "file"],
+    [".obsidian/core-plugins.json", "file"],
+    [".obsidian/templates.json", "file"],
   ];
   const checks = [
+    canonicalContainmentCheck("vault:containment", workspaceRoot, vault),
     ...instructionScopeChecks("knowledge", vault),
-    ...relativePaths.map((relative) => {
-      const target = path.join(vault, relative);
-      return check(
-        `vault:${relative}`,
-        fs.existsSync(target) ? "ok" : "error",
-        target,
-      );
-    }),
+    ...expected.map(([relative, type]) =>
+      artifactCheck(`vault:${relative}`, path.join(vault, relative), type),
+    ),
   ];
-  checks.push(...placeholderChecks(vault));
+  checks.push(...placeholderChecks(workspaceRoot, vault));
   return checks;
 }
 
-function placeholderChecks(vault: string): DoctorCheck[] {
+function placeholderChecks(
+  workspaceRoot: string,
+  vault: string,
+): DoctorCheck[] {
   const files: readonly (readonly [string, string])[] = [
-    ["root-instructions", path.resolve(vault, "..", "AGENTS.md")],
+    ["root-instructions", path.join(workspaceRoot, "AGENTS.md")],
     ["vault-instructions", path.join(vault, "AGENTS.md")],
     ["start-here", path.join(vault, "Start Here.md")],
   ];
   return files.flatMap(([label, file]) => {
-    if (!isFile(file)) return [];
+    if (!isFile(file)) {
+      return [
+        check(
+          `template-placeholders:${label}`,
+          "error",
+          `expected a readable file: ${file}`,
+        ),
+      ];
+    }
     const unresolved = /\{\{[A-Z0-9_]+\}\}/.test(fs.readFileSync(file, "utf8"));
     return [
       check(
@@ -182,9 +204,52 @@ function instructionScopeChecks(
 }
 
 function skillCatalogChecks(workspaceRoot: string): DoctorCheck[] {
+  const agentDirectory = path.join(workspaceRoot, ".agents");
+  if (!fs.existsSync(agentDirectory)) return [];
+  const agentDirectoryCheck = artifactCheck(
+    "agent-skills:root",
+    agentDirectory,
+    "directory",
+  );
+  if (agentDirectoryCheck.status === "error") return [agentDirectoryCheck];
   const canonicalDirectory = path.join(workspaceRoot, ".agents", "skills");
+  const containmentCheck = canonicalContainmentCheck(
+    "agent-skills:containment",
+    workspaceRoot,
+    canonicalDirectory,
+  );
+  if (containmentCheck.status === "error") {
+    return [agentDirectoryCheck, containmentCheck];
+  }
+  if (!fs.existsSync(canonicalDirectory)) {
+    return [agentDirectoryCheck, containmentCheck];
+  }
+  const directoryCheck = artifactCheck(
+    "agent-skills:canonical-directory",
+    canonicalDirectory,
+    "directory",
+  );
+  if (directoryCheck.status === "error") return [directoryCheck];
+  const entries = fs.readdirSync(canonicalDirectory).sort();
+  const skillArtifactChecks = entries.flatMap((name) => {
+    const directory = path.join(canonicalDirectory, name);
+    const skillDirectory = artifactCheck(
+      `agent-skills:${name}:directory`,
+      directory,
+      "directory",
+    );
+    return skillDirectory.status === "error"
+      ? [skillDirectory]
+      : [
+          skillDirectory,
+          artifactCheck(
+            `agent-skills:${name}:definition`,
+            path.join(directory, "SKILL.md"),
+            "file",
+          ),
+        ];
+  });
   const canonicalSkills = skillNames(canonicalDirectory);
-  if (canonicalSkills.length === 0) return [];
 
   const duplicates = VENDOR_SKILL_DIRECTORIES.flatMap((relative) => {
     const mirrored = new Set(skillNames(path.join(workspaceRoot, relative)));
@@ -193,6 +258,10 @@ function skillCatalogChecks(workspaceRoot: string): DoctorCheck[] {
       .map((name) => `${relative}/${name}`);
   });
   return [
+    agentDirectoryCheck,
+    containmentCheck,
+    directoryCheck,
+    ...skillArtifactChecks,
     check(
       "agent-skills:canonical-catalog",
       "ok",
@@ -244,8 +313,34 @@ function obsidianCheck(): DoctorCheck {
 }
 
 function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
+  const stateContainment = canonicalContainmentCheck(
+    "qmd:local-state-containment",
+    workspace.root,
+    path.join(workspace.root, ".qmd"),
+  );
+  const localConfig = ["index.yml", "index.yaml"]
+    .map((name) => path.join(workspace.root, ".qmd", name))
+    .find((candidate) => isFile(candidate));
+  const localChecks = [
+    stateContainment,
+    check(
+      "qmd:local-index",
+      localConfig === undefined ? "warning" : "ok",
+      localConfig ?? `missing; run braingraph qmd configure ${workspace.root}`,
+    ),
+    ...(localConfig === undefined
+      ? []
+      : [
+          canonicalContainmentCheck(
+            "qmd:local-index-file-containment",
+            workspace.root,
+            localConfig,
+          ),
+        ]),
+  ];
   if (!commandExists("qmd")) {
     return [
+      ...localChecks,
       check(
         "qmd:cli",
         "warning",
@@ -253,9 +348,22 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
       ),
     ];
   }
+  const version = supportedQmdVersion(workspace.root);
+  const checks: DoctorCheck[] = [
+    ...localChecks,
+    check(
+      "qmd:cli",
+      version === undefined ? "warning" : "ok",
+      version === undefined
+        ? `installed version is unsupported; requires ${MINIMUM_QMD_VERSION} or newer within major version 2`
+        : `version ${version}`,
+    ),
+  ];
+  if (version === undefined || localConfig === undefined) return checks;
   const collection = workspace.manifest.knowledge.qmd.collection;
   const result = run("qmd", ["collection", "show", collection], {
     allowFailure: true,
+    cwd: workspace.root,
   });
   const collectionMatches =
     result.status === 0 &&
@@ -273,6 +381,7 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
   );
   const contextResult = run("qmd", ["context", "list"], {
     allowFailure: true,
+    cwd: workspace.root,
   });
   const contextMatches =
     contextResult.status === 0 &&
@@ -281,8 +390,15 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
       collection,
       workspace.manifest.workspace.description,
     );
-  return [
-    check("qmd:cli", "ok", "installed"),
+  const health = run("qmd", ["doctor"], {
+    allowFailure: true,
+    cwd: workspace.root,
+  });
+  const status = run("qmd", ["status"], {
+    allowFailure: true,
+    cwd: workspace.root,
+  });
+  checks.push(
     check(
       "qmd:collection",
       collectionMatches ? "ok" : "warning",
@@ -290,11 +406,7 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
         ? collection
         : `missing or mismatched; run braingraph qmd configure ${workspace.root}`,
     ),
-    check(
-      "qmd:agent-skill",
-      fs.existsSync(qmdSkill) ? "ok" : "warning",
-      qmdSkill,
-    ),
+    artifactCheck("qmd:agent-skill", qmdSkill, "file", "warning"),
     check(
       "qmd:context",
       contextMatches ? "ok" : "warning",
@@ -302,7 +414,20 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
         ? workspace.manifest.workspace.description
         : `missing; run braingraph qmd configure ${workspace.root}`,
     ),
-  ];
+    check(
+      "qmd:runtime-health",
+      health.status === 0 ? "ok" : "warning",
+      health.status === 0
+        ? summarizeOutput(health.stdout, "QMD doctor passed")
+        : summarizeOutput(health.stderr || health.stdout, "QMD doctor failed"),
+    ),
+    check(
+      "qmd:index-status",
+      status.status === 0 ? "ok" : "warning",
+      summarizeOutput(status.stdout || status.stderr, "QMD status unavailable"),
+    ),
+  );
+  return checks;
 }
 
 function softwareChecks(workspace: LoadedWorkspace): DoctorCheck[] {
@@ -315,11 +440,30 @@ function softwareChecks(workspace: LoadedWorkspace): DoctorCheck[] {
       gitInstalled ? "installed" : "not found",
     ),
   ];
+  let localState: LocalWorkspaceState;
+  try {
+    localState = loadLocalState(workspace.root);
+  } catch (error: unknown) {
+    checks.push(
+      check(
+        "repositories:local-state",
+        "error",
+        error instanceof Error ? error.message : String(error),
+      ),
+    );
+    localState = { schemaVersion: 1, attachments: {} };
+  }
   for (const [id, repository] of Object.entries(
     workspace.manifest.repositories,
   )) {
     checks.push(
-      ...repositoryChecks(workspace.root, id, repository, gitInstalled),
+      ...repositoryChecks(
+        workspace.root,
+        id,
+        repository,
+        localState,
+        gitInstalled,
+      ),
     );
   }
   return checks;
@@ -328,27 +472,39 @@ function softwareChecks(workspace: LoadedWorkspace): DoctorCheck[] {
 function repositoryChecks(
   workspaceRoot: string,
   id: string,
-  repository: LoadedWorkspace["manifest"]["repositories"][string],
+  repository: RepositoryConfig,
+  localState: LocalWorkspaceState,
   gitInstalled: boolean,
 ): DoctorCheck[] {
   const hub = path.join(workspaceRoot, repository.path);
+  const checks: DoctorCheck[] = [
+    canonicalContainmentCheck(
+      `repository:${id}:containment`,
+      workspaceRoot,
+      hub,
+    ),
+    artifactCheck(`repository:${id}:hub`, hub, "directory"),
+    ...instructionScopeChecks(`repository:${id}`, hub),
+  ];
+  if (repository.mode === "attached") {
+    checks.push(
+      ...attachedRepositoryChecks(id, repository, localState, gitInstalled),
+    );
+    return checks;
+  }
+
   const anchor = path.join(hub, ".bare");
   const stable = path.join(hub, repository.stableWorktree);
-  const stableExists = fs.existsSync(stable);
-  const checks = [
-    check(`repository:${id}:hub`, fs.existsSync(hub) ? "ok" : "error", hub),
-    check(
-      `repository:${id}:anchor`,
-      fs.existsSync(anchor) ? "ok" : "warning",
-      anchor,
-    ),
-    ...instructionScopeChecks(`repository:${id}`, hub),
-    check(
+  const stableExists = isDirectory(stable);
+  checks.push(
+    artifactCheck(`repository:${id}:anchor`, anchor, "directory", "warning"),
+    artifactCheck(
       `repository:${id}:stable-worktree`,
-      stableExists ? "ok" : "warning",
       stable,
+      "directory",
+      "warning",
     ),
-  ];
+  );
   if (!gitInstalled || !stableExists) return checks;
 
   const result = run(
@@ -363,6 +519,81 @@ function repositoryChecks(
       stable,
     ),
   );
+  return checks;
+}
+
+function attachedRepositoryChecks(
+  id: string,
+  repository: RepositoryConfig & { mode: "attached" },
+  localState: LocalWorkspaceState,
+  gitInstalled: boolean,
+): DoctorCheck[] {
+  const attachment = Object.entries(localState.attachments).find(
+    ([attachmentId]) => attachmentId === id,
+  )?.[1];
+  if (attachment === undefined) {
+    return [
+      check(
+        `repository:${id}:local-attachment`,
+        "warning",
+        "missing machine-local checkout mapping; rerun repo attach",
+      ),
+    ];
+  }
+  const checkout = attachment.checkoutPath;
+  const checks = [
+    artifactCheck(`repository:${id}:attached-checkout`, checkout, "directory"),
+  ];
+  if (!gitInstalled || !isDirectory(checkout)) return checks;
+  const rootResult = run(
+    "git",
+    ["-C", checkout, "rev-parse", "--show-toplevel"],
+    { allowFailure: true },
+  );
+  const originResult = run(
+    "git",
+    ["-C", checkout, "remote", "get-url", "origin"],
+    { allowFailure: true },
+  );
+  checks.push(
+    check(
+      `repository:${id}:attached-git-root`,
+      rootResult.status === 0 &&
+        canonicalPath(rootResult.stdout.trim()) === canonicalPath(checkout)
+        ? "ok"
+        : "error",
+      checkout,
+    ),
+    check(
+      `repository:${id}:attached-origin`,
+      originResult.status === 0 && originResult.stdout.trim() === repository.url
+        ? "ok"
+        : "error",
+      repository.url,
+    ),
+  );
+  if (attachment.bridge) {
+    checks.push(
+      artifactCheck(
+        `repository:${id}:local-agents-bridge`,
+        path.join(checkout, "AGENTS.md"),
+        "file",
+      ),
+      artifactCheck(
+        `repository:${id}:local-claude-bridge`,
+        path.join(checkout, "CLAUDE.md"),
+        "file",
+      ),
+    );
+  } else {
+    checks.push(
+      check(
+        `repository:${id}:local-agent-discovery`,
+        "warning",
+        "automatic checkout bridge disabled; existing repository instructions must point to the Braingraph workspace",
+      ),
+    );
+  }
   return checks;
 }
 
@@ -416,4 +647,49 @@ function canonicalPath(value: string): string {
   } catch {
     return path.resolve(value);
   }
+}
+
+function artifactCheck(
+  name: string,
+  candidate: string,
+  expected: "file" | "directory",
+  missingStatus: CheckStatus = "error",
+): DoctorCheck {
+  const matches =
+    expected === "file" ? isFile(candidate) : isDirectory(candidate);
+  if (matches) return check(name, "ok", candidate);
+  const exists = fs.existsSync(candidate);
+  return check(
+    name,
+    exists ? "error" : missingStatus,
+    exists
+      ? `expected ${expected}: ${candidate}`
+      : `missing ${expected}: ${candidate}`,
+  );
+}
+
+function canonicalContainmentCheck(
+  name: string,
+  root: string,
+  candidate: string,
+): DoctorCheck {
+  try {
+    assertCanonicalPathInside(root, candidate, name);
+    return check(name, "ok", candidate);
+  } catch (error: unknown) {
+    return check(
+      name,
+      "error",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+function summarizeOutput(value: string, fallback: string): string {
+  const lines = value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return lines.length > 0 ? lines.join("; ") : fallback;
 }

@@ -60,6 +60,10 @@ Use `braingraph system update` for changed access, ownership, identity, or lifec
 
 ## Software Profile
 
-When the user enables software support, register each repository separately with its actual integration and production branches. Use `repo add --dry-run` before cloning. Use Braingraph worktree commands for isolated work and inspection-first cleanup.
+When the user enables software support, register each repository separately with its actual integration and optional production branch. Use `repo add --dry-run` when Braingraph should create and manage a new local anchor/worktree layout. Use `repo attach --dry-run` when an established checkout must retain its existing Git layout; explain that only the portable repository identity enters `braingraph.json`, while its absolute path enters ignored local state. Prefer the generated ignored discovery bridge when the checkout has no root instructions. If root `AGENTS.md` or `CLAUDE.md` already exists, use `--no-bridge` only after establishing how those repository-native instructions will point agents to the canonical workspace.
+
+Validate every remote and integration/production branch before registration. Never persist credentials, query tokens, fragments, malformed refs, or an unverified remote branch. Use Braingraph worktree commands only for managed repositories; attached repositories retain their existing branch/worktree practices.
 
 Never remove a worktree merely because work appears merged. Inspect it, report the exact candidate and risks, obtain explicit human confirmation, then use the exact confirmation token with `--execute`. Branch deletion is outside worktree removal.
+
+Use `repo remove` only after the same explicit confirmation discipline. Deregistration preserves the hub, checkout, bridges, worktrees, and branches; report those retained recovery artifacts rather than deleting them implicitly.

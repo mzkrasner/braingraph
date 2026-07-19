@@ -79,6 +79,11 @@ export function knowledgeReplacements(
 ): Replacements {
   return {
     ...rootReplacements(manifest),
+    WORKSPACE_ROOT_RELATIVE:
+      path
+        .relative(manifest.knowledge.directory, ".")
+        .split(path.sep)
+        .join("/") || ".",
     QMD_RETRIEVAL_SECTION: qmdRetrievalSection(manifest),
     QMD_START_SECTION: qmdStartSection(manifest),
   };
@@ -100,5 +105,5 @@ function qmdStartSection(manifest: WorkspaceManifest): string {
 }
 
 function softwareRootSection(): string {
-  return `## Software Profile\n\nRead \`braingraph.json\` before assuming software repositories are part of this workspace. When the \`software\` profile is enabled, configured repositories live under \`repositories/\` as worktree hubs. Read each hub's \`AGENTS.md\`, then the selected worktree's repository-native instructions. Use isolated feature worktrees for edits and stable integration worktrees only for orientation. Cleanup is inspection-first, refuses dirty worktrees and unpushed commits, requires exact human confirmation, and never deletes branches implicitly. When the profile is absent, do not introduce repository or worktree structure without human approval.`;
+  return `## Software Profile\n\nRead \`braingraph.json\` before assuming software repositories are part of this workspace. When the \`software\` profile is enabled, configured repositories live under \`repositories/\` as managed-worktree or attached-checkout hubs. Read each hub's \`AGENTS.md\`, then the selected checkout's repository-native instructions. Use isolated feature worktrees for managed implementation and stable integration worktrees only for orientation. Cleanup is inspection-first, refuses dirty worktrees and unpushed commits, requires exact human confirmation, and never deletes branches implicitly. Attached checkout locations and local discovery bridges are machine-local state, not durable workspace configuration. When the profile is absent, do not introduce repository or worktree structure without human approval.`;
 }

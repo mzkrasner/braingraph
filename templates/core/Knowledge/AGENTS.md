@@ -30,7 +30,7 @@ At the end of meaningful research, implementation, review, planning, or stakehol
 Do not promote transient task status, raw conversation summaries, exhaustive ticket history, or speculative conclusions.
 
 - When the human asked to ingest, document, update, or maintain knowledge, apply the scoped local Markdown changes after surfacing conflicts and exclusions.
-- During unrelated work, read `maintenance` in `../braingraph.json`. In `proposal-first` mode, propose a compact packet with affected files, supported claims, sources, exclusions, and unresolved questions, then wait before writing.
+- During unrelated work, read `maintenance` in `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json`. In `proposal-first` mode, propose a compact packet with affected files, supported claims, sources, exclusions, and unresolved questions, then wait before writing.
 - In `delegated` mode, apply only routine local Markdown maintenance within the manifest's `delegatedScope`, report the files changed, and propose anything outside that scope.
 - External writes, destructive actions, disclosure changes, and new sensitivity boundaries always require their own authorization.
 
@@ -61,7 +61,7 @@ Do not create parallel pages for aliases describing one concept. Do not collapse
 
 ## Sources And External Systems
 
-Read `../braingraph.json` before using an external system. Its registry declares ownership, access, freshness, capture, and sensitivity.
+Read `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json` before using an external system. Its registry declares ownership, access, freshness, capture, and sensitivity.
 
 - Link and summarize when the external system should retain ownership.
 - Copy only when this workspace is explicitly intended to own the material.

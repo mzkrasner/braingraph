@@ -1,5 +1,8 @@
 # Repository Hubs
 
-Each child directory represents one configured software repository. Its `.bare/` directory is the Git anchor, its stable integration worktree is for orientation, and sibling feature directories are isolated worktrees.
+Each child directory is the durable governance hub for one configured software repository. Read its `AGENTS.md` to determine the integration mode.
 
-Use Braingraph's worktree commands. Never edit application code in `.bare/` or implement directly in a stable integration worktree.
+- A **managed** hub contains a `.bare/` Git anchor, one stable integration worktree for orientation, and sibling isolated feature worktrees. Use Braingraph's worktree commands; never edit `.bare/` or implement in the stable worktree.
+- An **attached** hub points to an established checkout whose absolute path is stored only in ignored local state. Braingraph does not rewrite that checkout's Git layout or provide managed worktree commands for it.
+
+Hub governance files are portable. Git internals, child worktrees, attachment paths, and local discovery bridges are not.

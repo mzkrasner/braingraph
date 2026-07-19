@@ -32,7 +32,13 @@ import type {
   WorkspaceProfile,
   WorkspaceScope,
 } from "../types.js";
-import { assertRelativePath, sameJson, slugify, unique } from "../util.js";
+import {
+  assertCanonicalPathInside,
+  assertKnowledgeDirectoryPath,
+  sameJson,
+  slugify,
+  unique,
+} from "../util.js";
 
 const EMPTY_DIRECTORIES = [
   "projects",
@@ -63,6 +69,12 @@ const MAINTENANCE_MODES: readonly MaintenanceMode[] = [
   PROPOSAL_FIRST,
   "delegated",
 ];
+const ROOT_IGNORE_MARKER = "# Braingraph local and generated state";
+const ROOT_IGNORE_BLOCK = `${ROOT_IGNORE_MARKER}
+/.qmd/
+/braingraph.local.json
+/repositories/*/*/
+`;
 
 export const INIT_HELP = `Usage:
   braingraph init [directory] --name <name> [options]
@@ -117,8 +129,10 @@ export async function initCommand(
   const existing = readExistingManifest(manifestFile);
   const proposed = proposeManifest(root, options, existing);
   assertCompatibleIdentity(existing, proposed);
+  assertWorkspaceDestinations(root, proposed);
 
   const plan = new ActionPlan({
+    root,
     dryRun: booleanOption(options, "dry-run"),
     output: context.output ?? process.stdout,
   });
@@ -180,13 +194,10 @@ function proposeManifest(
     maintenanceMode,
     existing,
   );
-  const knowledgeDirectory = assertRelativePath(
-    stringOption(
-      options,
-      "knowledge-dir",
-      existing?.knowledge.directory ?? "Knowledge",
-    ),
-    "knowledge directory",
+  const knowledgeDirectory = assertKnowledgeDirectoryPath(
+    stringOption(options, "knowledge-dir") ??
+      existing?.knowledge.directory ??
+      "Knowledge",
   );
   const profiles = unique<WorkspaceProfile>([
     "knowledge",
@@ -314,6 +325,11 @@ function writeWorkspace(
   plan: ActionPlan,
 ): void {
   plan.ensureDirectory(root);
+  plan.ensureTextBlock(
+    path.join(root, ".gitignore"),
+    ROOT_IGNORE_MARKER,
+    ROOT_IGNORE_BLOCK,
+  );
   if (existing === undefined)
     plan.writeMissing(manifestFile, `${JSON.stringify(proposed, null, 2)}\n`);
   else if (!sameJson(existing, proposed))
@@ -354,6 +370,26 @@ function writeWorkspace(
         "utf8",
       ),
     );
+  }
+}
+
+function assertWorkspaceDestinations(
+  root: string,
+  manifest: WorkspaceManifest,
+): void {
+  const destinations = [
+    path.join(root, MANIFEST_NAME),
+    path.join(root, ".gitignore"),
+    path.join(root, "schemas"),
+    path.join(root, "AGENTS.md"),
+    path.join(root, "CLAUDE.md"),
+    path.join(root, manifest.knowledge.directory),
+  ];
+  if (manifest.workspace.profiles.includes(SOFTWARE_PROFILE)) {
+    destinations.push(path.join(root, "repositories"));
+  }
+  for (const destination of destinations) {
+    assertCanonicalPathInside(root, destination, "managed destination");
   }
 }
 

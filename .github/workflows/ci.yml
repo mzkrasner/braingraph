@@ -16,7 +16,36 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality Gates
+    name: Quality (${{ matrix.os }}, Node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 22
+          - os: macos-latest
+            node: 22
+          - os: windows-latest
+            node: 22
+          - os: ubuntu-latest
+            node: 26
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm qa
+      - run: pnpm smoke:package
+
+  dependency-audit:
+    name: Dependency Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -26,7 +55,8 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .node-version
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm qa
+      - run: pnpm audit:prod
+      - run: pnpm audit:dev

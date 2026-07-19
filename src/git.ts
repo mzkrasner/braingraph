@@ -6,14 +6,14 @@ import type {
   ProcessOptions,
   ProcessResult,
   RegisteredWorktree,
-  RepositoryConfig,
+  ManagedRepositoryConfig,
   WorktreeInspection,
 } from "./types.js";
 
 interface InspectWorktreeOptions {
   workspaceRoot: string;
   repositoryId: string;
-  repository: RepositoryConfig;
+  repository: ManagedRepositoryConfig;
   name: string;
 }
 

@@ -90,7 +90,7 @@ test("manifest validation reports malformed workspace boundaries", () => {
   assert.ok(errors.some((error) => error.includes("templateVersion")));
   assert.ok(errors.some((error) => error.includes("workspace.name")));
   assert.ok(errors.some((error) => error.includes("workspace.slug")));
-  assert.ok(errors.some((error) => error.includes("knowledge.directory")));
+  assert.ok(errors.some((error) => error.includes("knowledge directory")));
   assert.ok(errors.some((error) => error.includes("externalSystems entries")));
   assert.ok(errors.some((error) => error.includes("repository Bad")));
 });
