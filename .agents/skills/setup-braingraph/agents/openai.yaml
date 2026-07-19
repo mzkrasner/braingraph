@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup Braingraph"
+  short_description: "Create an agent-first knowledge workspace"
+  default_prompt: "Set up or extend a Braingraph workspace after proposing the structure and running a dry run."

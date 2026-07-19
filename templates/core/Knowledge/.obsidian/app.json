@@ -1,0 +1,8 @@
+{
+  "alwaysUpdateLinks": true,
+  "attachmentFolderPath": "raw/attachments",
+  "newFileFolderPath": "raw",
+  "newFileLocation": "folder",
+  "showUnsupportedFiles": true,
+  "useMarkdownLinks": false
+}
