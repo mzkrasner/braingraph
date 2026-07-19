@@ -17,95 +17,86 @@ import {
   temporaryDirectory,
 } from "./helpers.js";
 
-test.skipIf(process.platform === "win32")(
-  "init refuses a symlinked knowledge destination before any workspace write",
-  async () => {
+test("init refuses a linked knowledge destination before any workspace write", async () => {
+  const root = temporaryDirectory();
+  const workspace = path.join(root, "workspace");
+  const outside = path.join(root, "outside");
+  fs.mkdirSync(workspace);
+  fs.mkdirSync(outside);
+  linkDirectory(outside, path.join(workspace, "Knowledge"));
+
+  const result = await runCli(["init", workspace, "--name", "Boundary"]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /resolves outside/);
+  assert.equal(fs.existsSync(path.join(workspace, "braingraph.json")), false);
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
+test("repository registration refuses a linked hub without mutating the manifest", async () => {
+  const root = temporaryDirectory();
+  const workspace = path.join(root, "workspace");
+  const outside = path.join(root, "outside");
+  const fixture = createRemoteWithBranch("main");
+  assert.equal(
+    (
+      await runCli([
+        "init",
+        workspace,
+        "--name",
+        "Repository Boundary",
+        "--profile",
+        "software",
+      ])
+    ).status,
+    0,
+  );
+  fs.mkdirSync(outside);
+  linkDirectory(outside, path.join(workspace, "repositories", "app"));
+
+  const result = await runCli([
+    "repo",
+    "add",
+    "app",
+    "--workspace",
+    workspace,
+    "--url",
+    fixture.remote,
+    "--integration-branch",
+    "main",
+    "--no-clone",
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /resolves outside/);
+  assert.equal(readWorkspaceManifest(workspace).repositories.app, undefined);
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
+test("QMD refuses linked state and skill destinations outside the workspace", async () => {
+  for (const destination of [".qmd", ".agents"]) {
     const root = temporaryDirectory();
     const workspace = path.join(root, "workspace");
     const outside = path.join(root, "outside");
-    fs.mkdirSync(workspace);
-    fs.mkdirSync(outside);
-    fs.symlinkSync(outside, path.join(workspace, "Knowledge"));
-
-    const result = await runCli(["init", workspace, "--name", "Boundary"]);
-
-    assert.equal(result.status, 2);
-    assert.match(result.stderr, /resolves outside/);
-    assert.equal(fs.existsSync(path.join(workspace, "braingraph.json")), false);
-    assert.deepEqual(fs.readdirSync(outside), []);
-  },
-);
-
-test.skipIf(process.platform === "win32")(
-  "repository registration refuses a symlinked hub without mutating the manifest",
-  async () => {
-    const root = temporaryDirectory();
-    const workspace = path.join(root, "workspace");
-    const outside = path.join(root, "outside");
-    const fixture = createRemoteWithBranch("main");
     assert.equal(
-      (
-        await runCli([
-          "init",
-          workspace,
-          "--name",
-          "Repository Boundary",
-          "--profile",
-          "software",
-        ])
-      ).status,
+      (await runCli(["init", workspace, "--name", "QMD Boundary"])).status,
       0,
     );
     fs.mkdirSync(outside);
-    fs.symlinkSync(outside, path.join(workspace, "repositories", "app"));
+    const linked = path.join(workspace, destination);
+    fs.rmSync(linked, { recursive: true, force: true });
+    linkDirectory(outside, linked);
 
-    const result = await runCli([
-      "repo",
-      "add",
-      "app",
-      "--workspace",
-      workspace,
-      "--url",
-      fixture.remote,
-      "--integration-branch",
-      "main",
-      "--no-clone",
-    ]);
-
-    assert.equal(result.status, 2);
+    const result = await runCli(["qmd", "configure", workspace, "--dry-run"]);
+    assert.equal(result.status, 2, destination);
     assert.match(result.stderr, /resolves outside/);
-    assert.equal(readWorkspaceManifest(workspace).repositories.app, undefined);
     assert.deepEqual(fs.readdirSync(outside), []);
-  },
-);
 
-test.skipIf(process.platform === "win32")(
-  "QMD refuses symlinked state and skill destinations outside the workspace",
-  async () => {
-    for (const destination of [".qmd", ".agents"]) {
-      const root = temporaryDirectory();
-      const workspace = path.join(root, "workspace");
-      const outside = path.join(root, "outside");
-      assert.equal(
-        (await runCli(["init", workspace, "--name", "QMD Boundary"])).status,
-        0,
-      );
-      fs.mkdirSync(outside);
-      const linked = path.join(workspace, destination);
-      fs.rmSync(linked, { recursive: true, force: true });
-      fs.symlinkSync(outside, linked);
-
-      const result = await runCli(["qmd", "configure", workspace, "--dry-run"]);
-      assert.equal(result.status, 2, destination);
-      assert.match(result.stderr, /resolves outside/);
-      assert.deepEqual(fs.readdirSync(outside), []);
-
-      const doctor = await runCli(["doctor", workspace]);
-      assert.equal(doctor.status, 1);
-      assert.match(doctor.stdout, /containment/);
-    }
-  },
-);
+    const doctor = await runCli(["doctor", workspace]);
+    assert.equal(doctor.status, 1);
+    assert.match(doctor.stdout, /containment/);
+  }
+});
 
 test("generated Git internals and worktrees are ignored by an outer repository", async () => {
   const workspace = path.join(temporaryDirectory(), "workspace");
@@ -607,3 +598,11 @@ test("doctor validates Obsidian, skill, and managed repository artifact types", 
   assert.equal(hubDoctor.status, 1);
   assert.match(hubDoctor.stdout, /repository:app:hub/);
 });
+
+function linkDirectory(target: string, destination: string): void {
+  fs.symlinkSync(
+    target,
+    destination,
+    process.platform === "win32" ? "junction" : "dir",
+  );
+}
