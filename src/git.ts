@@ -9,6 +9,7 @@ import type {
   ManagedRepositoryConfig,
   WorktreeInspection,
 } from "./types.js";
+import { canonicalPath, sameCanonicalPath } from "./util.js";
 
 interface InspectWorktreeOptions {
   workspaceRoot: string;
@@ -73,8 +74,8 @@ export function inspectWorktree(
   if (!fs.existsSync(worktree))
     throw new Error(`worktree not found: ${worktree}`);
 
-  const registered = registeredWorktrees(anchor).some(
-    (entry) => canonicalPath(entry.path) === canonicalPath(worktree),
+  const registered = registeredWorktrees(anchor).some((entry) =>
+    sameCanonicalPath(entry.path, worktree),
   );
   const status = gitOutput(worktree, [
     "status",
@@ -141,17 +142,11 @@ export function inspectWorktree(
 }
 
 function isInside(candidate: string, root: string): boolean {
-  const relative = path.relative(canonicalPath(root), canonicalPath(candidate));
+  const canonicalRoot = canonicalPath(root);
+  const canonicalCandidate = canonicalPath(candidate);
+  const relative = path.relative(canonicalRoot, canonicalCandidate);
   return (
     relative === "" ||
     (!relative.startsWith("..") && !path.isAbsolute(relative))
   );
-}
-
-function canonicalPath(value: string): string {
-  try {
-    return fs.realpathSync(value);
-  } catch {
-    return path.resolve(value);
-  }
 }

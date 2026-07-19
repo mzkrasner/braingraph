@@ -43,7 +43,7 @@ export function renderTemplateTree(options: RenderTemplateTreeOptions): void {
       .relative(source, file)
       .replace(/(^|[/\\])gitignore\.template$/, "$1.gitignore");
     const target = path.join(destination, relative);
-    const content = render(fs.readFileSync(file, "utf8"), replacements);
+    const content = render(readTemplate(file), replacements);
     plan.writeMissing(target, content);
   }
 }
@@ -54,7 +54,11 @@ export function templateContent(
   replacements: Replacements = {},
 ): string {
   const file = path.join(TEMPLATE_ROOT, relative);
-  return render(fs.readFileSync(file, "utf8"), replacements);
+  return render(readTemplate(file), replacements);
+}
+
+function readTemplate(file: string): string {
+  return fs.readFileSync(file, "utf8").replaceAll("\r\n", "\n");
 }
 
 /** Converts manifest include globs into QMD's collection mask syntax. */

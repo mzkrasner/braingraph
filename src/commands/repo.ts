@@ -28,6 +28,7 @@ import {
   assertRelativePath,
   assertSlug,
   resolveInside,
+  sameCanonicalPath,
   sameJson,
   slugify,
 } from "../util.js";
@@ -740,7 +741,7 @@ function validateCheckout(value: string): string {
   const root = fs.realpathSync(
     gitOutput(candidate, ["rev-parse", "--show-toplevel"]),
   );
-  if (root !== candidate) {
+  if (!sameCanonicalPath(root, candidate)) {
     throw new UsageError(`--checkout must identify the Git root: ${root}`);
   }
   return candidate;
@@ -836,11 +837,7 @@ function escapeMarkdownCodePath(value: string): string {
 
 function sameRepositoryUrl(left: string, right: string): boolean {
   if (isLocalRepositoryPath(left) && isLocalRepositoryPath(right)) {
-    try {
-      return fs.realpathSync(left) === fs.realpathSync(right);
-    } catch {
-      return path.resolve(left) === path.resolve(right);
-    }
+    return sameCanonicalPath(left, right);
   }
   return left === right;
 }

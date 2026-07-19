@@ -157,8 +157,11 @@ test("path and identifier utilities enforce portable workspace values", () => {
   assert.throws(() => assertSlug("Example"), /lowercase letters/);
   assert.throws(() => slugify("---"), /cannot derive a slug/);
   assert.equal(assertRelativePath("docs/notes"), "docs/notes");
+  assert.equal(assertRelativePath("docs\\notes"), "docs/notes");
   assert.throws(() => assertRelativePath("../outside"), /remain inside/);
   assert.throws(() => assertRelativePath("/outside"), /relative path/);
+  assert.throws(() => assertRelativePath("C:\\outside"), /relative path/);
+  assert.throws(() => assertRelativePath("C:outside"), /relative path/);
   assert.match(resolveInside("/tmp/workspace", "docs"), /workspace\/docs$/);
   assert.deepEqual(unique(["a", "b", "a"]), ["a", "b"]);
   assert.equal(sameJson({ a: 1 }, { a: 1 }), true);
@@ -193,6 +196,11 @@ test("subprocess helpers report failures and quote review output", () => {
     },
   );
   assert.equal(captured.stdout, "captured");
+  const normalized = run(process.execPath, [
+    "-e",
+    "process.stdout.write('first\\r\\nsecond\\rthird')",
+  ]);
+  assert.equal(normalized.stdout, "first\nsecond\nthird");
   assert.equal(commandExists(process.execPath), true);
   assert.equal(
     commandExists("braingraph-command-that-does-not-exist", "win32"),

@@ -47,10 +47,15 @@ export function assertRelativePath(
   value: string | undefined,
   label = "path",
 ): string {
-  if (!value || path.isAbsolute(value))
+  if (
+    !value ||
+    path.posix.isAbsolute(value) ||
+    path.win32.isAbsolute(value) ||
+    /^[A-Za-z]:/.test(value)
+  )
     throw new UsageError(`${label} must be a relative path`);
-  const normalized = path.normalize(value);
-  if (normalized === ".." || normalized.startsWith(`..${path.sep}`)) {
+  const normalized = path.posix.normalize(value.replaceAll("\\", "/"));
+  if (normalized === ".." || normalized.startsWith("../")) {
     throw new UsageError(`${label} must remain inside the workspace`);
   }
   return normalized;
@@ -132,6 +137,23 @@ export function sameJson(left: unknown, right: unknown): boolean {
 /** Returns an absolute display path. */
 export function formatPath(value: string): string {
   return path.resolve(value);
+}
+
+/** Resolves an existing or prospective path into a comparable filesystem key. */
+export function canonicalPath(value: string): string {
+  let canonical: string;
+  try {
+    canonical = fs.realpathSync(value);
+  } catch {
+    canonical = path.resolve(value);
+  }
+  const normalized = path.normalize(canonical);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+/** Compares filesystem paths using the current platform's path semantics. */
+export function sameCanonicalPath(left: string, right: string): boolean {
+  return canonicalPath(left) === canonicalPath(right);
 }
 
 function isSlug(value: string): boolean {

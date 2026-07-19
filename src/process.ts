@@ -37,9 +37,13 @@ export function run(
 
   return {
     status: result.status ?? 1,
-    stdout: result.stdout,
-    stderr: result.stderr,
+    stdout: normalizeCapturedText(result.stdout),
+    stderr: normalizeCapturedText(result.stderr),
   };
+}
+
+function normalizeCapturedText(value: string | null): string {
+  return (value ?? "").replaceAll("\r\n", "\n").replaceAll("\r", "\n");
 }
 
 /** Checks whether an executable can be resolved on the current PATH. */

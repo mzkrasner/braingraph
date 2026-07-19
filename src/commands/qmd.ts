@@ -7,7 +7,7 @@ import { loadWorkspace } from "../manifest.js";
 import { commandExists, displayCommand, run } from "../process.js";
 import { qmdMask } from "../templates.js";
 import type { CommandContext, OutputStream, ProcessOptions } from "../types.js";
-import { assertCanonicalPathInside } from "../util.js";
+import { assertCanonicalPathInside, sameCanonicalPath } from "../util.js";
 
 export const MINIMUM_QMD_VERSION = "2.5.3";
 const SUPPORTED_QMD_MAJOR = 2;
@@ -264,20 +264,13 @@ function assertMatchingCollection(
   const pathMatch = /^\s*Path:\s+(.+)$/m.exec(stdout)?.[1]?.trim();
   const patternMatch = /^\s*Pattern:\s+(.+)$/m.exec(stdout)?.[1]?.trim();
   if (
-    canonicalPath(pathMatch ?? "") !== canonicalPath(vault) ||
+    pathMatch === undefined ||
+    !sameCanonicalPath(pathMatch, vault) ||
     patternMatch !== mask
   ) {
     throw new UsageError(
       `QMD collection ${collection} already exists with a different path or mask; inspect it before changing local index state`,
     );
-  }
-}
-
-function canonicalPath(value: string): string {
-  try {
-    return fs.realpathSync(value);
-  } catch {
-    return path.resolve(value);
   }
 }
 
