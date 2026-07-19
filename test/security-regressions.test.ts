@@ -311,15 +311,24 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test("worktree process inspection fails closed on unsupported platforms", () => {
+  const inspection = inspectProcessesUsing("C:\\synthetic-worktree", "win32");
+
+  assert.equal(inspection.status, "unknown");
+  assert.match(inspection.reason ?? "", /unavailable on Windows/);
+  assert.deepEqual(inspection.processes, []);
+});
+
 test("atomic JSON writes preserve restrictive existing file modes", () => {
-  if (process.platform === "win32") return;
   const root = temporaryDirectory();
   for (const mode of [0o600, 0o640]) {
     const file = path.join(root, `manifest-${mode.toString(8)}.json`);
     fs.writeFileSync(file, "{}\n", { encoding: "utf8", mode });
-    fs.chmodSync(file, mode);
+    if (process.platform !== "win32") fs.chmodSync(file, mode);
     writeJsonAtomic(file, { updated: true }, root);
-    assert.equal(fs.statSync(file).mode & 0o777, mode);
+    if (process.platform !== "win32") {
+      assert.equal(fs.statSync(file).mode & 0o777, mode);
+    }
     assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), {
       updated: true,
     });
