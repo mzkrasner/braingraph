@@ -1,8 +1,26 @@
 # Braingraph
 
-Braingraph scaffolds a durable, agent-first second brain that can grow alongside a person, project, organization, or domain.
+**Open-source AI knowledge management for building an Obsidian second brain and Markdown knowledge base that humans and AI agents can maintain together.**
 
-The generated workspace is an Obsidian vault backed by ordinary Markdown, with QMD configured as its agent retrieval layer. Braingraph helps install both tools, establishes their shared taxonomy and search boundaries, and keeps the Markdown usable even when either application is closed. Software worktree management can be enabled when relevant.
+Braingraph scaffolds a durable, searchable workspace for a person, project, organization, or domain. It configures Obsidian as the human interface and QMD as the agent retrieval layer, then generates the taxonomy, source-of-truth rules, privacy boundaries, and agent instructions needed to keep knowledge useful over time.
+
+Braingraph does not bundle an AI model or lock knowledge inside a proprietary database. It gives the AI agents you already use a portable Markdown workspace that remains readable without Braingraph, Obsidian, QMD, or a particular agent vendor.
+
+## What Braingraph Sets Up
+
+- An Obsidian second brain with durable navigation, templates, sources, projects, domains, and reusable knowledge.
+- A Markdown knowledge base optimized for both human editing and AI agent retrieval.
+- QMD semantic search with collection boundaries and workspace-purpose context.
+- Agent instructions for provenance, source ownership, privacy, maintenance, and taxonomy evolution.
+- Vendor-neutral contracts for issue trackers, file stores, messaging, CRMs, and other external systems.
+- An optional software profile for repository coordination and guarded Git worktree management.
+
+## Use Cases
+
+- Building an AI second brain for personal knowledge management and recurring project work.
+- Team AI knowledge management with explicit sources of truth and human review boundaries.
+- Durable project context for coding agents working across repositories and worktrees.
+- A shared AI agent workspace that can evolve as tools, projects, and operating practices change.
 
 ## Principles
 
@@ -17,7 +35,7 @@ The generated workspace is an Obsidian vault backed by ordinary Markdown, with Q
 ## Quick Start
 
 ```bash
-git clone <braingraph-repository>
+git clone https://github.com/mzkrasner/braingraph.git
 cd braingraph
 corepack enable
 pnpm install
