@@ -29,6 +29,7 @@ Build the smallest workspace that satisfies the human's current needs while pres
 11. Offer a dry run of `braingraph obsidian open`, then open the generated `Start Here.md` only after approval.
 12. Run `braingraph doctor <workspace>` and report capabilities that remain unconfigured.
 13. Give the user the generated `Start Here.md` path and explain how agents will propose or apply durable updates at meaningful milestones under the persisted maintenance boundary.
+14. Review the completed setup for repeatable friction, unsupported assumptions, or behavior that did not generalize to the user's environment. When a likely Braingraph product gap remains after local diagnosis, read `references/product-feedback.md` and follow its duplicate-check, sanitization, approval, and issue-filing workflow.
 
 ## Constraints
 
@@ -39,6 +40,7 @@ Build the smallest workspace that satisfies the human's current needs while pres
 - Do not move or rewrite existing notes without a separate migration proposal and approval.
 - Do not store credentials, tokens, raw connector payloads, or prohibited sensitive data in the workspace.
 - Do not treat connector access as write authorization.
+- Do not treat approval to configure a workspace as approval to create a GitHub issue. Present the sanitized issue draft and obtain explicit approval before filing it.
 - Do not create speculative taxonomy. Start minimally and let evidence justify new boundaries.
 - Do not treat setup completion as the end of knowledge maintenance. Fresh agents should proactively surface durable update candidates as work continues.
 

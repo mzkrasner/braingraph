@@ -51,6 +51,8 @@ Ask an agent working in this repository:
 
 The agent must follow `.agents/skills/setup-braingraph/SKILL.md`: understand the intended scope, identify privacy and external-system boundaries, propose a setup, obtain approval, run a dry run, and only then create the workspace.
 
+Setup is also a product-learning surface. Agents should identify repeatable friction or assumptions that fail to generalize, distinguish those gaps from local configuration problems, and prepare a structured issue for [Braingraph Issues](https://github.com/mzkrasner/braingraph/issues). They must search for duplicates, remove machine-specific or sensitive context, show the draft to the user, and obtain explicit approval before filing it.
+
 ## Commands
 
 ```text

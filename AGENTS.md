@@ -34,6 +34,8 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
 
 When a user asks to create, adopt, or configure a Braingraph workspace, load `.agents/skills/setup-braingraph/SKILL.md` and follow its proposal-first workflow.
 
+Treat repeatable setup friction as product evidence. After diagnosing local configuration, setup agents should surface limitations, brittle assumptions, confusing behavior, or missing generalization and use the skill's `references/product-feedback.md` workflow to prepare a sanitized, duplicate-checked GitHub issue. Creating the issue is an external write and requires explicit human approval.
+
 ## Verification
 
 Run `pnpm qa` after changing code, templates, schemas, or commands. Vitest suites must use temporary directories and local synthetic Git repositories; they must not require network access, depend on installed desktop tools, or mutate the developer's Obsidian or QMD state.
