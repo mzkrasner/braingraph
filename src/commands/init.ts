@@ -25,9 +25,12 @@ import {
 } from "../templates.js";
 import type {
   CommandContext,
+  MaintenanceMode,
   OptionMap,
+  Sensitivity,
   WorkspaceManifest,
   WorkspaceProfile,
+  WorkspaceScope,
 } from "../types.js";
 import { assertRelativePath, sameJson, slugify, unique } from "../util.js";
 
@@ -41,6 +44,25 @@ const EMPTY_DIRECTORIES = [
   "reports",
 ];
 const SOFTWARE_PROFILE: WorkspaceProfile = "software";
+const PROPOSAL_FIRST: MaintenanceMode = "proposal-first";
+const MAINTENANCE_SCOPE_OPTION = "maintenance-scope";
+const WORKSPACE_SCOPES: readonly WorkspaceScope[] = [
+  "project",
+  "organization",
+  "professional-domain",
+  "personal-domain",
+  "mixed",
+];
+const SENSITIVITY_LEVELS: readonly Sensitivity[] = [
+  "public",
+  "private",
+  "confidential",
+  "regulated",
+];
+const MAINTENANCE_MODES: readonly MaintenanceMode[] = [
+  PROPOSAL_FIRST,
+  "delegated",
+];
 
 export const INIT_HELP = `Usage:
   braingraph init [directory] --name <name> [options]
@@ -48,6 +70,11 @@ export const INIT_HELP = `Usage:
 Options:
   --name <name>                 Human-facing workspace and Obsidian vault name
   --slug <slug>                 Stable workspace slug (default: derived from name)
+  --description <text>          Durable purpose used for agent and QMD context
+  --scope <scope>               project | organization | professional-domain | personal-domain | mixed
+  --sensitivity <level>         public | private | confidential | regulated (default: private)
+  --maintenance-mode <mode>     proposal-first | delegated (default: proposal-first)
+  --maintenance-scope <scope>   Required for delegated routine local maintenance
   --knowledge-dir <path>        Obsidian vault directory (default: Knowledge)
   --profile <profile>           Additional profile; currently: software
   --configure                   Configure QMD after initialization
@@ -66,6 +93,11 @@ export async function initCommand(
   rejectUnknownOptions(options, [
     "name",
     "slug",
+    "description",
+    "scope",
+    "sensitivity",
+    "maintenance-mode",
+    MAINTENANCE_SCOPE_OPTION,
     "knowledge-dir",
     "profile",
     "configure",
@@ -120,6 +152,34 @@ function proposeManifest(
     throw new UsageError("--name must not be empty");
   const slug =
     stringOption(options, "slug") ?? existing?.workspace.slug ?? slugify(name);
+  const description =
+    stringOption(options, "description") ??
+    existing?.workspace.description ??
+    `Durable knowledge workspace for ${name}.`;
+  if (description.trim().length === 0) {
+    throw new UsageError("--description must not be empty");
+  }
+  if (/\r|\n/.test(description)) {
+    throw new UsageError("--description must be one line");
+  }
+  const scope = workspaceScopeOption(
+    stringOption(options, "scope") ?? existing?.workspace.scope ?? "mixed",
+  );
+  const sensitivity = sensitivityOption(
+    stringOption(options, "sensitivity") ??
+      existing?.workspace.sensitivity ??
+      "private",
+  );
+  const maintenanceMode = maintenanceModeOption(
+    stringOption(options, "maintenance-mode") ??
+      existing?.knowledge.maintenance.mode ??
+      PROPOSAL_FIRST,
+  );
+  const delegatedScope = delegatedMaintenanceScope(
+    options,
+    maintenanceMode,
+    existing,
+  );
   const knowledgeDirectory = assertRelativePath(
     stringOption(
       options,
@@ -136,13 +196,89 @@ function proposeManifest(
   const proposed = existing
     ? {
         ...structuredClone(existing),
-        workspace: { ...existing.workspace, name, slug, profiles },
-        knowledge: { ...existing.knowledge, directory: knowledgeDirectory },
+        workspace: {
+          ...existing.workspace,
+          name,
+          slug,
+          description,
+          scope,
+          sensitivity,
+          profiles,
+        },
+        knowledge: {
+          ...existing.knowledge,
+          directory: knowledgeDirectory,
+          maintenance: {
+            mode: maintenanceMode,
+            ...(delegatedScope === undefined ? {} : { delegatedScope }),
+          },
+        },
       }
-    : createManifest({ name, slug, knowledgeDirectory, profiles });
+    : createManifest({
+        name,
+        slug,
+        description,
+        scope,
+        sensitivity,
+        maintenanceMode,
+        ...(delegatedScope === undefined ? {} : { delegatedScope }),
+        knowledgeDirectory,
+        profiles,
+      });
   const errors = validateManifest(proposed);
   if (errors.length > 0) throw new UsageError(errors.join("; "));
   return proposed;
+}
+
+function sensitivityOption(value: string): Sensitivity {
+  if (!SENSITIVITY_LEVELS.some((level) => level === value)) {
+    throw new UsageError(
+      `--sensitivity must be one of: ${SENSITIVITY_LEVELS.join(", ")}`,
+    );
+  }
+  return value as Sensitivity;
+}
+
+function maintenanceModeOption(value: string): MaintenanceMode {
+  if (!MAINTENANCE_MODES.some((mode) => mode === value)) {
+    throw new UsageError(
+      `--maintenance-mode must be one of: ${MAINTENANCE_MODES.join(", ")}`,
+    );
+  }
+  return value as MaintenanceMode;
+}
+
+function delegatedMaintenanceScope(
+  options: OptionMap,
+  mode: MaintenanceMode,
+  existing: WorkspaceManifest | undefined,
+): string | undefined {
+  if (mode === PROPOSAL_FIRST) {
+    if (options.has(MAINTENANCE_SCOPE_OPTION)) {
+      throw new UsageError(
+        "--maintenance-scope is only valid with --maintenance-mode=delegated",
+      );
+    }
+    return undefined;
+  }
+  const scope =
+    stringOption(options, MAINTENANCE_SCOPE_OPTION) ??
+    existing?.knowledge.maintenance.delegatedScope;
+  if (scope === undefined || scope.trim().length === 0) {
+    throw new UsageError(
+      "--maintenance-scope is required with --maintenance-mode=delegated",
+    );
+  }
+  return scope;
+}
+
+function workspaceScopeOption(value: string): WorkspaceScope {
+  if (!WORKSPACE_SCOPES.some((scope) => scope === value)) {
+    throw new UsageError(
+      `--scope must be one of: ${WORKSPACE_SCOPES.join(", ")}`,
+    );
+  }
+  return value as WorkspaceScope;
 }
 
 function requestedProfiles(options: OptionMap): WorkspaceProfile[] {
@@ -181,7 +317,7 @@ function writeWorkspace(
   if (existing === undefined)
     plan.writeMissing(manifestFile, `${JSON.stringify(proposed, null, 2)}\n`);
   else if (!sameJson(existing, proposed))
-    plan.writeJson(manifestFile, proposed, "update workspace profiles");
+    plan.writeJson(manifestFile, proposed, "update workspace configuration");
   else plan.note("preserve file", manifestFile, "skipped");
   plan.writeMissing(
     path.join(root, "schemas", "braingraph-workspace.schema.json"),

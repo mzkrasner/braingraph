@@ -67,8 +67,10 @@ export function toolsInstallCommand(
 }
 
 function requireInstallMode(dryRun: boolean, execute: boolean): void {
-  if (!dryRun && !execute) {
-    throw new UsageError("tools install requires --dry-run or --execute");
+  if (dryRun === execute) {
+    throw new UsageError(
+      "tools install requires exactly one of --dry-run or --execute",
+    );
   }
 }
 

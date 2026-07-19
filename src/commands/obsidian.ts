@@ -35,8 +35,10 @@ export function obsidianOpenCommand(
     throw new UsageError("obsidian open accepts at most one directory");
   const dryRun = booleanOption(options, "dry-run");
   const execute = booleanOption(options, "execute");
-  if (!dryRun && !execute)
-    throw new UsageError("obsidian open requires --dry-run or --execute");
+  if (dryRun === execute)
+    throw new UsageError(
+      "obsidian open requires exactly one of --dry-run or --execute",
+    );
   if (execute && !isObsidianInstalled())
     throw new UsageError(
       "Obsidian is not installed; run braingraph tools install --dry-run first",

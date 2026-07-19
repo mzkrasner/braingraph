@@ -4,7 +4,9 @@
   "title": "Braingraph workspace",
   "type": "object",
   "required": [
+    "$schema",
     "schemaVersion",
+    "templateVersion",
     "workspace",
     "knowledge",
     "externalSystems",
@@ -14,13 +16,38 @@
   "properties": {
     "$schema": { "type": "string" },
     "schemaVersion": { "const": 1 },
+    "templateVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
     "workspace": {
       "type": "object",
-      "required": ["name", "slug", "profiles"],
+      "required": [
+        "name",
+        "slug",
+        "description",
+        "scope",
+        "sensitivity",
+        "profiles"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^.*\\S.*$"
+        },
+        "scope": {
+          "enum": [
+            "project",
+            "organization",
+            "professional-domain",
+            "personal-domain",
+            "mixed"
+          ]
+        },
+        "sensitivity": {
+          "enum": ["public", "private", "confidential", "regulated"]
+        },
         "profiles": {
           "type": "array",
           "items": { "enum": ["knowledge", "software"] },
@@ -31,10 +58,29 @@
     },
     "knowledge": {
       "type": "object",
-      "required": ["directory", "obsidian", "qmd"],
+      "required": ["directory", "maintenance", "obsidian", "qmd"],
       "additionalProperties": false,
       "properties": {
         "directory": { "type": "string", "minLength": 1 },
+        "maintenance": {
+          "type": "object",
+          "required": ["mode"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "enum": ["proposal-first", "delegated"] },
+            "delegatedScope": { "type": "string", "minLength": 1 }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "mode": { "const": "delegated" } },
+                "required": ["mode"]
+              },
+              "then": { "required": ["delegatedScope"] },
+              "else": { "not": { "required": ["delegatedScope"] } }
+            }
+          ]
+        },
         "obsidian": {
           "type": "object",
           "required": ["enabled", "vaultName"],
@@ -75,18 +121,22 @@
       "required": [
         "id",
         "name",
+        "status",
         "roles",
         "owns",
+        "identifiers",
         "access",
         "freshness",
         "capture",
-        "sensitivity"
+        "sensitivity",
+        "fallback"
       ],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         "name": { "type": "string", "minLength": 1 },
-        "url": { "type": "string" },
+        "status": { "enum": ["active", "planned", "inactive"] },
+        "url": { "type": "string", "minLength": 1 },
         "roles": {
           "type": "array",
           "items": {
@@ -105,7 +155,14 @@
         "owns": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "minItems": 1
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "identifiers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
         },
         "access": {
           "type": "object",
@@ -116,6 +173,7 @@
             "write": { "enum": ["prohibited", "human-approval", "delegated"] }
           }
         },
+        "writeScope": { "type": "string", "minLength": 1 },
         "freshness": {
           "enum": [
             "verify-live",
@@ -130,8 +188,33 @@
         "sensitivity": {
           "enum": ["public", "private", "confidential", "regulated"]
         },
+        "fallback": { "type": "string", "minLength": 1 },
         "notes": { "type": "string" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "access": {
+                "properties": { "write": { "const": "delegated" } },
+                "required": ["write"]
+              }
+            }
+          },
+          "then": { "required": ["writeScope"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "access": {
+                "properties": { "write": { "const": "delegated" } },
+                "required": ["write"]
+              }
+            }
+          },
+          "else": { "not": { "required": ["writeScope"] } }
+        }
+      ]
     },
     "repository": {
       "type": "object",

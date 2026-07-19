@@ -50,14 +50,33 @@ function parseLongOption(
     equalsIndex === -1 ? undefined : token.slice(equalsIndex + 1);
 
   if (rawKey.startsWith("no-")) {
+    if (inlineValue !== undefined) {
+      throw new UsageError(`--${rawKey} does not accept a value`);
+    }
     addNegatedOption(rawKey, options);
     return;
   }
-  if (BOOLEAN_OPTIONS.has(rawKey) && inlineValue === undefined) {
-    addOption(options, rawKey, true);
+  if (BOOLEAN_OPTIONS.has(rawKey)) {
+    addBooleanOption(rawKey, inlineValue, options);
     return;
   }
   addOption(options, rawKey, inlineValue ?? takeOptionValue(rawKey, pending));
+}
+
+function addBooleanOption(
+  key: string,
+  inlineValue: string | undefined,
+  options: OptionMap,
+): void {
+  if (inlineValue === undefined || inlineValue === "true") {
+    addOption(options, key, true);
+    return;
+  }
+  if (inlineValue === "false") {
+    addOption(options, key, false);
+    return;
+  }
+  throw new UsageError(`--${key} accepts only true or false`);
 }
 
 function addNegatedOption(rawKey: string, options: OptionMap): void {

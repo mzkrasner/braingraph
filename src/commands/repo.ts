@@ -75,10 +75,8 @@ export function repoAddCommand(
       "the software profile is not enabled for this workspace",
     );
   }
-  if (!commandExists("git"))
-    throw new UsageError("Git is required for the software profile");
 
-  const url = requiredOption(options, "url");
+  const url = assertSafeRepositoryUrl(requiredOption(options, "url"));
   const integrationBranch = requiredOption(options, "integration-branch");
   const stableWorktree = assertSlug(
     stringOption(options, "stable-name") ?? slugify(integrationBranch),
@@ -97,25 +95,29 @@ export function repoAddCommand(
   };
   const dryRun = booleanOption(options, "dry-run");
   const shouldClone = booleanOption(options, "clone", true);
+  if (shouldClone && !commandExists("git")) {
+    throw new UsageError("Git is required when repository cloning is enabled");
+  }
   const existing = findRepository(workspace.manifest.repositories, id);
   if (existing) {
     if (!sameJson(existing, repository))
       throw new UsageError(
         `repository ${id} already exists with different configuration`,
       );
+    const plan = new ActionPlan({ dryRun, output });
     const existingHub = path.join(workspace.root, existing.path);
-    const existingAnchor = path.join(existingHub, ".bare");
-    if (shouldClone && !fs.existsSync(existingAnchor)) {
-      cloneRepository({
+    scaffoldRepositoryHub(id, existingHub, existing, plan);
+    if (shouldClone) {
+      ensureRepositoryClone({
         workspaceRoot: workspace.root,
         hub: existingHub,
         repository: existing,
         dryRun,
         output,
       });
-      return 0;
+    } else {
+      output.write(`Repository unchanged: ${id}\n`);
     }
-    output.write(`Repository unchanged: ${id}\n`);
     return 0;
   }
 
@@ -131,19 +133,11 @@ export function repoAddCommand(
   if (fs.existsSync(hub) && fs.readdirSync(hub).length > 0) {
     throw new UsageError(`repository hub is not empty: ${hub}`);
   }
-  plan.ensureDirectory(hub);
-  plan.ensureDirectory(path.join(hub, ".artifacts-shared"));
-  plan.writeMissing(
-    path.join(hub, "AGENTS.md"),
-    templateContent("software/repository-AGENTS.md", {
-      REPOSITORY_NAME: id,
-      REPOSITORY_URL: url,
-      INTEGRATION_BRANCH: stableWorktree,
-    }),
-  );
+  plan.writeJson(workspace.file, updated, "register repository");
+  scaffoldRepositoryHub(id, hub, repository, plan);
 
   if (shouldClone) {
-    cloneRepository({
+    ensureRepositoryClone({
       workspaceRoot: workspace.root,
       hub,
       repository,
@@ -151,23 +145,50 @@ export function repoAddCommand(
       output,
     });
   }
-
-  plan.writeJson(workspace.file, updated, "register repository");
   return 0;
 }
 
-function cloneRepository(options: CloneRepositoryOptions): void {
+function scaffoldRepositoryHub(
+  id: string,
+  hub: string,
+  repository: RepositoryConfig,
+  plan: ActionPlan,
+): void {
+  plan.ensureDirectory(hub);
+  plan.ensureDirectory(path.join(hub, ".artifacts-shared"));
+  plan.writeMissing(
+    path.join(hub, "AGENTS.md"),
+    templateContent("software/repository-AGENTS.md", {
+      REPOSITORY_NAME: id,
+      REPOSITORY_URL: repository.url,
+      INTEGRATION_BRANCH: repository.stableWorktree,
+    }),
+  );
+}
+
+function ensureRepositoryClone(options: CloneRepositoryOptions): void {
   const { workspaceRoot, hub, repository, dryRun, output } = options;
   const anchor = path.join(hub, ".bare");
   const stablePath = path.join(hub, repository.stableWorktree);
-  if (fs.existsSync(anchor) || fs.existsSync(stablePath)) {
+  const anchorExists = fs.existsSync(anchor);
+  const stableExists = fs.existsSync(stablePath);
+  if (stableExists && !anchorExists) {
     throw new UsageError(
-      `refusing to clone over an existing anchor or stable worktree in ${hub}`,
+      `stable worktree exists without its Git anchor: ${stablePath}`,
     );
   }
-  const commands: string[][] = [
-    ["init", "--bare", anchor],
-    ["-C", anchor, "remote", "add", "origin", repository.url],
+  if (!anchorExists) {
+    executeGit(["init", "--bare", anchor], workspaceRoot, dryRun, output);
+    executeGit(
+      ["-C", anchor, "remote", "add", "origin", repository.url],
+      workspaceRoot,
+      dryRun,
+      output,
+    );
+  } else {
+    ensureMatchingOrigin(anchor, repository.url, workspaceRoot, dryRun, output);
+  }
+  executeGit(
     [
       "-C",
       anchor,
@@ -175,17 +196,49 @@ function cloneRepository(options: CloneRepositoryOptions): void {
       "remote.origin.fetch",
       "+refs/heads/*:refs/remotes/origin/*",
     ],
+    workspaceRoot,
+    dryRun,
+    output,
+  );
+  executeGit(
     ["-C", anchor, "fetch", "origin", "--prune"],
-    [
-      "-C",
-      anchor,
-      "worktree",
-      "add",
-      "-b",
-      repository.integrationBranch,
-      stablePath,
-      `origin/${repository.integrationBranch}`,
-    ],
+    workspaceRoot,
+    dryRun,
+    output,
+  );
+  const remoteRef = `refs/remotes/origin/${repository.integrationBranch}`;
+  if (!dryRun && !refExists(anchor, remoteRef)) {
+    throw new UsageError(
+      `remote branch not found after fetch: ${repository.integrationBranch}`,
+    );
+  }
+  if (stableExists) {
+    output.write(`Stable worktree already exists: ${stablePath}\n`);
+    return;
+  }
+  const localRef = `refs/heads/${repository.integrationBranch}`;
+  const addArgs =
+    !dryRun && refExists(anchor, localRef)
+      ? [
+          "-C",
+          anchor,
+          "worktree",
+          "add",
+          stablePath,
+          repository.integrationBranch,
+        ]
+      : [
+          "-C",
+          anchor,
+          "worktree",
+          "add",
+          "-b",
+          repository.integrationBranch,
+          stablePath,
+          `origin/${repository.integrationBranch}`,
+        ];
+  executeGit(addArgs, workspaceRoot, dryRun, output);
+  executeGit(
     [
       "-C",
       stablePath,
@@ -194,19 +247,44 @@ function cloneRepository(options: CloneRepositoryOptions): void {
       `origin/${repository.integrationBranch}`,
       repository.integrationBranch,
     ],
-  ];
-  for (const args of commands) {
-    output.write(
-      `${dryRun ? "[dry-run] " : ""}${displayCommand("git", args)}\n`,
+    workspaceRoot,
+    dryRun,
+    output,
+  );
+}
+
+function executeGit(
+  args: readonly string[],
+  cwd: string,
+  dryRun: boolean,
+  output: OutputStream,
+): void {
+  output.write(`${dryRun ? "[dry-run] " : ""}${displayCommand("git", args)}\n`);
+  if (!dryRun) git(args, { cwd, stdio: "inherit" });
+}
+
+function ensureMatchingOrigin(
+  anchor: string,
+  expectedUrl: string,
+  cwd: string,
+  dryRun: boolean,
+  output: OutputStream,
+): void {
+  const result = git(["-C", anchor, "remote", "get-url", "origin"], {
+    allowFailure: true,
+  });
+  if (result.status !== 0) {
+    executeGit(
+      ["-C", anchor, "remote", "add", "origin", expectedUrl],
+      cwd,
+      dryRun,
+      output,
     );
-    if (!dryRun) git(args, { cwd: workspaceRoot, stdio: "inherit" });
+    return;
   }
-  if (
-    !dryRun &&
-    !refExists(anchor, `refs/remotes/origin/${repository.integrationBranch}`)
-  ) {
+  if (result.stdout.trim() !== expectedUrl) {
     throw new UsageError(
-      `remote branch not found after fetch: ${repository.integrationBranch}`,
+      `existing Git anchor origin does not match the registered repository: ${anchor}`,
     );
   }
 }
@@ -214,6 +292,15 @@ function cloneRepository(options: CloneRepositoryOptions): void {
 function requiredOption(options: OptionMap, key: string): string {
   const value = stringOption(options, key);
   if (!value) throw new UsageError(`--${key} is required`);
+  return value;
+}
+
+function assertSafeRepositoryUrl(value: string): string {
+  if (/^[a-z][a-z0-9+.-]*:\/\/[^/@\s]+@/i.test(value)) {
+    throw new UsageError(
+      "repository URLs must not embed credentials; use the local Git credential manager",
+    );
+  }
   return value;
 }
 

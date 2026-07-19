@@ -29,6 +29,7 @@ test("argument parsing supports inline, repeated, boolean, and negated options",
     "--role=execution",
     "--no-embed",
     "--dry-run",
+    "--execute=false",
   ]);
 
   assert.deepEqual(parsed.positionals, ["case"]);
@@ -36,12 +37,21 @@ test("argument parsing supports inline, repeated, boolean, and negated options",
   assert.deepEqual(listOption(parsed.options, "role"), ["source", "execution"]);
   assert.equal(booleanOption(parsed.options, "embed", true), false);
   assert.equal(booleanOption(parsed.options, "dry-run"), true);
-  rejectUnknownOptions(parsed.options, ["name", "role", "embed", "dry-run"]);
+  assert.equal(booleanOption(parsed.options, "execute"), false);
+  rejectUnknownOptions(parsed.options, [
+    "name",
+    "role",
+    "embed",
+    "dry-run",
+    "execute",
+  ]);
 });
 
 test("argument parsing rejects invalid option shapes", () => {
   assert.throws(() => parseArgs(["--name"]), /requires a value/);
   assert.throws(() => parseArgs(["--no-name"]), /unknown negated option/);
+  assert.throws(() => parseArgs(["--no-embed=true"]), /does not accept/);
+  assert.throws(() => parseArgs(["--execute=maybe"]), /only true or false/);
   const parsed = parseArgs(["--dry-run"]);
   assert.throws(
     () => stringOption(parsed.options, "dry-run"),
@@ -55,10 +65,20 @@ test("argument parsing rejects invalid option shapes", () => {
 test("manifest validation reports malformed workspace boundaries", () => {
   assert.deepEqual(validateManifest(null), ["root must be an object"]);
   const invalid: unknown = {
+    $schema: "./schema.json",
     schemaVersion: 2,
-    workspace: { name: "", slug: "Bad Slug", profiles: ["other"] },
+    templateVersion: 2,
+    workspace: {
+      name: "",
+      slug: "Bad Slug",
+      description: "",
+      scope: "unsupported",
+      sensitivity: "unsupported",
+      profiles: ["other"],
+    },
     knowledge: {
       directory: "../outside",
+      maintenance: { mode: "unsupported" },
       obsidian: { enabled: false },
       qmd: { enabled: false, collection: "", include: [] },
     },
@@ -67,6 +87,7 @@ test("manifest validation reports malformed workspace boundaries", () => {
   };
   const errors = validateManifest(invalid);
   assert.ok(errors.some((error) => error.includes("schemaVersion")));
+  assert.ok(errors.some((error) => error.includes("templateVersion")));
   assert.ok(errors.some((error) => error.includes("workspace.name")));
   assert.ok(errors.some((error) => error.includes("workspace.slug")));
   assert.ok(errors.some((error) => error.includes("knowledge.directory")));
@@ -78,6 +99,10 @@ test("a generated manifest satisfies its own runtime validator", () => {
   const manifest = createManifest({
     name: "Example",
     slug: "example",
+    description: "Example knowledge.",
+    scope: "project",
+    sensitivity: "private",
+    maintenanceMode: "proposal-first",
     knowledgeDirectory: "Knowledge",
     profiles: ["knowledge", "software"],
   });
@@ -88,18 +113,26 @@ test("manifest validation detects duplicate and invalid external-system contract
   const manifest = createManifest({
     name: "Example",
     slug: "example",
+    description: "Example knowledge.",
+    scope: "project",
+    sensitivity: "private",
+    maintenanceMode: "proposal-first",
     knowledgeDirectory: "Knowledge",
     profiles: ["knowledge"],
   });
   const invalidSystem = {
     id: "source-system",
     name: "",
+    status: "invalid",
     roles: [],
     owns: [],
+    identifiers: [],
     access: { read: "invalid", write: "invalid" },
     freshness: "invalid",
     capture: "invalid",
     sensitivity: "invalid",
+    fallback: "",
+    unsupported: true,
   };
   const candidate = {
     ...manifest,
@@ -110,6 +143,10 @@ test("manifest validation detects duplicate and invalid external-system contract
     errors.some((error) => error.includes("duplicate external system")),
   );
   assert.ok(errors.some((error) => error.includes("requires a name")));
+  assert.ok(errors.some((error) => error.includes("unsupported fields")));
+  assert.ok(
+    errors.some((error) => error.includes("requires unique identifiers")),
+  );
   assert.ok(errors.some((error) => error.includes("invalid read access")));
   assert.ok(errors.some((error) => error.includes("invalid sensitivity")));
 });

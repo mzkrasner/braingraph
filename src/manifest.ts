@@ -6,15 +6,32 @@ import { readJson } from "./files.js";
 import type {
   ExternalSystem,
   LoadedWorkspace,
+  MaintenanceMode,
   RepositoryConfig,
+  Sensitivity,
   WorkspaceManifest,
   WorkspaceProfile,
+  WorkspaceScope,
 } from "./types.js";
 import { assertRelativePath, assertSlug } from "./util.js";
 
 export const MANIFEST_NAME = "braingraph.json";
+export const SCHEMA_VERSION = 1;
+export const TEMPLATE_VERSION = 1;
 
 const PROFILES: readonly WorkspaceProfile[] = ["knowledge", "software"];
+const WORKSPACE_SCOPES: readonly WorkspaceScope[] = [
+  "project",
+  "organization",
+  "professional-domain",
+  "personal-domain",
+  "mixed",
+];
+const MAINTENANCE_MODES: readonly MaintenanceMode[] = [
+  "proposal-first",
+  "delegated",
+];
+const SYSTEM_STATUSES = ["active", "planned", "inactive"] as const;
 const SYSTEM_ROLES = [
   "source",
   "intake",
@@ -43,6 +60,11 @@ const SENSITIVITY = ["public", "private", "confidential", "regulated"] as const;
 interface CreateManifestOptions {
   name: string;
   slug: string;
+  description: string;
+  scope: WorkspaceScope;
+  sensitivity: Sensitivity;
+  maintenanceMode: MaintenanceMode;
+  delegatedScope?: string;
   knowledgeDirectory: string;
   profiles: WorkspaceProfile[];
 }
@@ -56,17 +78,35 @@ interface CreateManifestOptions {
 export function createManifest(
   options: CreateManifestOptions,
 ): WorkspaceManifest {
-  const { name, slug, knowledgeDirectory, profiles } = options;
+  const {
+    name,
+    slug,
+    description,
+    scope,
+    sensitivity,
+    maintenanceMode,
+    delegatedScope,
+    knowledgeDirectory,
+    profiles,
+  } = options;
   return {
     $schema: "./schemas/braingraph-workspace.schema.json",
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
+    templateVersion: TEMPLATE_VERSION,
     workspace: {
       name,
       slug,
+      description,
+      scope,
+      sensitivity,
       profiles,
     },
     knowledge: {
       directory: knowledgeDirectory,
+      maintenance: {
+        mode: maintenanceMode,
+        ...(delegatedScope === undefined ? {} : { delegatedScope }),
+      },
       obsidian: {
         enabled: true,
         vaultName: name,
@@ -140,8 +180,34 @@ export function validateManifest(manifest: unknown): string[] {
   }
 
   const errors: string[] = [];
-  if (manifest.schemaVersion !== 1) {
+  validateRecordKeys(
+    manifest,
+    [
+      "$schema",
+      "schemaVersion",
+      "templateVersion",
+      "workspace",
+      "knowledge",
+      "externalSystems",
+      "repositories",
+    ],
+    "manifest",
+    errors,
+  );
+  if (typeof manifest.$schema !== "string" || manifest.$schema.length === 0) {
+    errors.push("$schema is required");
+  }
+  if (manifest.schemaVersion !== SCHEMA_VERSION) {
     errors.push("schemaVersion must be 1");
+  }
+  if (
+    !Number.isInteger(manifest.templateVersion) ||
+    (manifest.templateVersion as number) < 1 ||
+    (manifest.templateVersion as number) > TEMPLATE_VERSION
+  ) {
+    errors.push(
+      `templateVersion must be between 1 and ${String(TEMPLATE_VERSION)}`,
+    );
   }
   validateWorkspace(manifest.workspace, errors);
   validateKnowledge(manifest.knowledge, errors);
@@ -165,14 +231,35 @@ function validateWorkspace(value: unknown, errors: string[]): void {
     errors.push("workspace is required");
     return;
   }
+  validateRecordKeys(
+    value,
+    ["name", "slug", "description", "scope", "sensitivity", "profiles"],
+    "workspace",
+    errors,
+  );
   if (typeof value.name !== "string" || value.name.trim().length === 0) {
     errors.push("workspace.name is required");
   }
   validateSlug(value.slug, "workspace.slug", errors);
+  if (
+    typeof value.description !== "string" ||
+    value.description.trim().length === 0 ||
+    /\r|\n/.test(value.description)
+  ) {
+    errors.push("workspace.description must be one non-empty line");
+  }
+  if (!includes(WORKSPACE_SCOPES, value.scope)) {
+    errors.push("workspace.scope is unsupported");
+  }
+  if (!includes(SENSITIVITY, value.sensitivity)) {
+    errors.push("workspace.sensitivity is unsupported");
+  }
   if (!Array.isArray(value.profiles) || !value.profiles.includes("knowledge")) {
     errors.push("workspace.profiles must include knowledge");
   } else if (!value.profiles.every(isWorkspaceProfile)) {
     errors.push("workspace.profiles contains an unsupported profile");
+  } else if (!hasUniqueValues(value.profiles)) {
+    errors.push("workspace.profiles must be unique");
   }
 }
 
@@ -181,7 +268,14 @@ function validateKnowledge(value: unknown, errors: string[]): void {
     errors.push("knowledge is required");
     return;
   }
+  validateRecordKeys(
+    value,
+    ["directory", "maintenance", "obsidian", "qmd"],
+    "knowledge",
+    errors,
+  );
   validateRelativePath(value.directory, "knowledge.directory", errors);
+  validateMaintenance(value.maintenance, errors);
 
   const obsidian = value.obsidian;
   if (
@@ -191,6 +285,13 @@ function validateKnowledge(value: unknown, errors: string[]): void {
     obsidian.vaultName.length === 0
   ) {
     errors.push("knowledge.obsidian must define enabled=true and vaultName");
+  } else {
+    validateRecordKeys(
+      obsidian,
+      ["enabled", "vaultName"],
+      "knowledge.obsidian",
+      errors,
+    );
   }
 
   const qmd = value.qmd;
@@ -201,6 +302,13 @@ function validateKnowledge(value: unknown, errors: string[]): void {
     qmd.collection.length === 0
   ) {
     errors.push("knowledge.qmd must define enabled=true and collection");
+  } else {
+    validateRecordKeys(
+      qmd,
+      ["enabled", "collection", "include"],
+      "knowledge.qmd",
+      errors,
+    );
   }
   if (
     !isRecord(qmd) ||
@@ -209,6 +317,39 @@ function validateKnowledge(value: unknown, errors: string[]): void {
     !qmd.include.every((entry) => typeof entry === "string" && entry.length > 0)
   ) {
     errors.push("knowledge.qmd.include must contain indexed paths");
+  } else if (!hasUniqueValues(qmd.include)) {
+    errors.push("knowledge.qmd.include must be unique");
+  }
+}
+
+function validateMaintenance(value: unknown, errors: string[]): void {
+  if (!isRecord(value)) {
+    errors.push("knowledge.maintenance is required");
+    return;
+  }
+  validateRecordKeys(
+    value,
+    ["mode", "delegatedScope"],
+    "knowledge.maintenance",
+    errors,
+  );
+  if (!includes(MAINTENANCE_MODES, value.mode)) {
+    errors.push("knowledge.maintenance.mode is unsupported");
+  }
+  validateOptionalString(
+    value.delegatedScope,
+    "knowledge.maintenance.delegatedScope",
+    errors,
+  );
+  if (
+    value.mode === "delegated" &&
+    (typeof value.delegatedScope !== "string" ||
+      value.delegatedScope.trim().length === 0)
+  ) {
+    errors.push("delegated knowledge maintenance requires delegatedScope");
+  }
+  if (value.mode === "proposal-first" && value.delegatedScope !== undefined) {
+    errors.push("proposal-first knowledge maintenance cannot delegate a scope");
   }
 }
 
@@ -228,6 +369,27 @@ function validateExternalSystem(
     errors.push("externalSystems entries must be objects");
     return;
   }
+  validateRecordKeys(
+    value,
+    [
+      "id",
+      "name",
+      "status",
+      "url",
+      "roles",
+      "owns",
+      "identifiers",
+      "access",
+      "writeScope",
+      "freshness",
+      "capture",
+      "sensitivity",
+      "fallback",
+      "notes",
+    ],
+    "external system",
+    errors,
+  );
   const label = validateExternalSystemId(value.id, ids, errors);
   validateExternalSystemFields(value, label, errors);
   validateExternalSystemAccess(value.access, label, errors);
@@ -254,19 +416,67 @@ function validateExternalSystemFields(
   if (typeof value.name !== "string" || value.name.length === 0) {
     errors.push(`external system ${label} requires a name`);
   }
+  if (!includes(SYSTEM_STATUSES, value.status)) {
+    errors.push(`external system ${label} has invalid status`);
+  }
+  validateOptionalString(value.url, `external system ${label} url`, errors);
   if (
     !Array.isArray(value.roles) ||
     value.roles.length === 0 ||
-    !value.roles.every((role) => includes(SYSTEM_ROLES, role))
+    !value.roles.every((role) => includes(SYSTEM_ROLES, role)) ||
+    !hasUniqueValues(value.roles)
   ) {
     errors.push(`external system ${label} has invalid roles`);
   }
   if (
     !Array.isArray(value.owns) ||
     value.owns.length === 0 ||
-    !value.owns.every((entry) => typeof entry === "string" && entry.length > 0)
+    !value.owns.every(
+      (entry) => typeof entry === "string" && entry.length > 0,
+    ) ||
+    !hasUniqueValues(value.owns)
   ) {
     errors.push(`external system ${label} requires owns`);
+  }
+  if (
+    !Array.isArray(value.identifiers) ||
+    value.identifiers.length === 0 ||
+    !value.identifiers.every(
+      (entry) => typeof entry === "string" && entry.length > 0,
+    ) ||
+    !hasUniqueValues(value.identifiers)
+  ) {
+    errors.push(`external system ${label} requires unique identifiers`);
+  }
+  if (typeof value.fallback !== "string" || value.fallback.length === 0) {
+    errors.push(`external system ${label} requires fallback behavior`);
+  }
+  validateOptionalString(
+    value.writeScope,
+    `external system ${label} writeScope`,
+    errors,
+  );
+  validateOptionalString(
+    value.notes,
+    `external system ${label} notes`,
+    errors,
+    true,
+  );
+  if (
+    isRecord(value.access) &&
+    value.access.write === "delegated" &&
+    (typeof value.writeScope !== "string" || value.writeScope.length === 0)
+  ) {
+    errors.push(`external system ${label} requires delegated writeScope`);
+  }
+  if (
+    isRecord(value.access) &&
+    value.access.write !== "delegated" &&
+    value.writeScope !== undefined
+  ) {
+    errors.push(
+      `external system ${label} cannot define writeScope without delegated access`,
+    );
   }
 }
 
@@ -275,6 +485,14 @@ function validateExternalSystemAccess(
   label: string,
   errors: string[],
 ): void {
+  if (isRecord(access)) {
+    validateRecordKeys(
+      access,
+      ["read", "write"],
+      `external system ${label} access`,
+      errors,
+    );
+  }
   if (!isRecord(access) || !includes(READ_ACCESS, access.read)) {
     errors.push(`external system ${label} has invalid read access`);
   }
@@ -309,6 +527,19 @@ function validateRepositories(
       errors.push(`repository ${id} must be an object`);
       continue;
     }
+    validateRecordKeys(
+      value,
+      [
+        "url",
+        "path",
+        "integrationBranch",
+        "productionBranch",
+        "stableWorktree",
+        "branchPrefix",
+      ],
+      `repository ${id}`,
+      errors,
+    );
     validateRelativePath(value.path, `repository ${id} path`, errors);
     if (typeof value.url !== "string" || value.url.length === 0) {
       errors.push(`repository ${id} requires url`);
@@ -318,6 +549,12 @@ function validateRepositories(
       value.integrationBranch.length === 0
     ) {
       errors.push(`repository ${id} requires integrationBranch`);
+    }
+    if (
+      value.productionBranch !== null &&
+      typeof value.productionBranch !== "string"
+    ) {
+      errors.push(`repository ${id} has invalid productionBranch`);
     }
     validateSlug(
       value.stableWorktree,
@@ -348,6 +585,37 @@ function validateRelativePath(
   } catch (error: unknown) {
     errors.push(errorMessage(error));
   }
+}
+
+function validateOptionalString(
+  value: unknown,
+  label: string,
+  errors: string[],
+  allowEmpty = false,
+): void {
+  if (value === undefined) return;
+  if (typeof value !== "string" || (!allowEmpty && value.length === 0)) {
+    errors.push(
+      `${label} must be a string${allowEmpty ? "" : " with content"}`,
+    );
+  }
+}
+
+function validateRecordKeys(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+  label: string,
+  errors: string[],
+): void {
+  const allowedKeys = new Set(allowed);
+  const unknown = Object.keys(value).filter((key) => !allowedKeys.has(key));
+  if (unknown.length > 0) {
+    errors.push(`${label} contains unsupported fields: ${unknown.join(", ")}`);
+  }
+}
+
+function hasUniqueValues(values: readonly unknown[]): boolean {
+  return new Set(values).size === values.length;
 }
 
 function errorMessage(error: unknown): string {

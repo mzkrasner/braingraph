@@ -2,3 +2,5 @@
 .obsidian/workspace-mobile.json
 .obsidian/cache/
 .trash/
+raw/*
+!raw/README.md

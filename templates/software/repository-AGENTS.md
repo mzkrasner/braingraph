@@ -20,4 +20,4 @@ This directory is the local worktree hub for `{{REPOSITORY_URL}}`.
 
 ## Cleanup
 
-Cleanup is never automatic. Inspect first. Removal requires the exact repository/worktree confirmation, a clean registered worktree, no detected local-only commits, an allowed reason, and explicit execution. Branch deletion is always separate.
+Cleanup is never automatic. Inspect first. Removal requires the exact repository/worktree confirmation, a clean registered worktree, a recoverable branch state with no unpushed commits, an allowed reason, and explicit execution. The branch is preserved, so published but intentionally abandoned or squash-merged work remains recoverable. Branch deletion is always separate.

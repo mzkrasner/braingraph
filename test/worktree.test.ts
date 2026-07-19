@@ -9,6 +9,7 @@ import {
   parseJsonObject,
   readWorkspaceManifest,
   runCli,
+  runGit,
   temporaryDirectory,
 } from "./helpers.js";
 
@@ -444,7 +445,7 @@ test("a repository registered without cloning can be cloned later", async () => 
     "main",
   ]);
   assert.equal(unchanged.status, 0, unchanged.stderr);
-  assert.match(unchanged.stdout, /Repository unchanged/);
+  assert.match(unchanged.stdout, /Stable worktree already exists/);
 
   const conflict = await runCli([
     "repo",
@@ -471,4 +472,143 @@ test("a repository registered without cloning can be cloned later", async () => 
   ]);
   assert.equal(missingUrl.status, 2);
   assert.match(missingUrl.stderr, /url is required/);
+
+  const credentialUrl = await runCli([
+    "repo",
+    "add",
+    "credential-url",
+    "--workspace",
+    workspace,
+    "--url",
+    "https://secret@example.invalid/app.git",
+    "--integration-branch",
+    "main",
+    "--no-clone",
+  ]);
+  assert.equal(credentialUrl.status, 2);
+  assert.match(credentialUrl.stderr, /must not embed credentials/);
+});
+
+test("repository registration recovers an interrupted anchor setup", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  const fixture = createRemoteWithBranch("main");
+  assert.equal(
+    (
+      await runCli([
+        "init",
+        workspace,
+        "--name",
+        "Recovery Example",
+        "--profile",
+        "software",
+      ])
+    ).status,
+    0,
+  );
+  const command = [
+    "repo",
+    "add",
+    "app",
+    "--workspace",
+    workspace,
+    "--url",
+    fixture.remote,
+    "--integration-branch",
+    "main",
+  ];
+  assert.equal((await runCli([...command, "--no-clone"])).status, 0);
+  const anchor = path.join(workspace, "repositories", "app", ".bare");
+  runGit(["init", "--bare", anchor], workspace);
+
+  const recovered = await runCli(command);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.equal(runGit(["remote", "get-url", "origin"], anchor), fixture.remote);
+  assert.ok(fs.existsSync(path.join(workspace, "repositories", "app", "main")));
+});
+
+test("worktree removal refuses unpushed commits but allows a published recovery point", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  const fixture = createRemoteWithBranch("main");
+  assert.equal(
+    (
+      await runCli([
+        "init",
+        workspace,
+        "--name",
+        "Recovery Safety",
+        "--profile",
+        "software",
+      ])
+    ).status,
+    0,
+  );
+  assert.equal(
+    (
+      await runCli([
+        "repo",
+        "add",
+        "app",
+        "--workspace",
+        workspace,
+        "--url",
+        fixture.remote,
+        "--integration-branch",
+        "main",
+      ])
+    ).status,
+    0,
+  );
+  assert.equal(
+    (
+      await runCli([
+        "worktree",
+        "new",
+        "app",
+        "local-change",
+        "--workspace",
+        workspace,
+      ])
+    ).status,
+    0,
+  );
+  const feature = path.join(workspace, "repositories", "app", "local-change");
+  runGit(["config", "user.name", "Synthetic Tester"], feature);
+  runGit(["config", "user.email", "synthetic@example.invalid"], feature);
+  runGit(["config", "commit.gpgSign", "false"], feature);
+  fs.writeFileSync(
+    path.join(feature, "change.txt"),
+    "durable change\n",
+    "utf8",
+  );
+  runGit(["add", "change.txt"], feature);
+  runGit(["commit", "-m", "test: add recoverable change"], feature);
+
+  const removal = [
+    "worktree",
+    "remove",
+    "app",
+    "local-change",
+    "--workspace",
+    workspace,
+    "--execute",
+    "--confirm",
+    "app/local-change",
+    "--reason",
+    "no-longer-needed",
+  ];
+  const refused = await runCli(removal);
+  assert.equal(refused.status, 2);
+  assert.match(refused.stderr, /not recoverable from its upstream/);
+  assert.ok(fs.existsSync(feature));
+
+  runGit(["push", "-u", "origin", "work/local-change"], feature);
+  const removed = await runCli(removal);
+  assert.equal(removed.status, 0, removed.stderr);
+  assert.equal(fs.existsSync(feature), false);
+  const anchor = path.join(workspace, "repositories", "app", ".bare");
+  assert.equal(
+    runGit(["show-ref", "--verify", "refs/heads/work/local-change"], anchor)
+      .length > 0,
+    true,
+  );
 });

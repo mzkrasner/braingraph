@@ -30,7 +30,24 @@ test("QMD configuration dry run uses the declared vault, collection, and mask", 
   assert.match(result.stdout, /qmd-example-brain/);
   assert.match(result.stdout, /domains\/\*\*\/\*\.md/);
   assert.match(result.stdout, /qmd skill install/);
+  assert.match(result.stdout, /qmd context add/);
+  assert.match(result.stdout, /Durable knowledge workspace for QMD Example/);
   assert.match(result.stdout, /qmd embed/);
+});
+
+test("QMD configuration can be planned before QMD is installed", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  assert.equal(
+    (await runCli(["init", workspace, "--name", "Fresh Machine"])).status,
+    0,
+  );
+
+  const result = await runCli(["qmd", "configure", workspace, "--dry-run"], {
+    env: { PATH: "/usr/bin:/bin" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /qmd collection add/);
+  assert.match(result.stdout, /qmd context add/);
 });
 
 test("QMD configuration refuses to reuse a conflicting collection", async () => {

@@ -4,7 +4,12 @@ import path from "node:path";
 
 import { test } from "vitest";
 
-import { parseJsonObject, runCli, temporaryDirectory } from "./helpers.js";
+import {
+  parseJsonObject,
+  readWorkspaceManifest,
+  runCli,
+  temporaryDirectory,
+} from "./helpers.js";
 
 const HELP_COMMANDS = [
   ["init", "--help"],
@@ -14,6 +19,7 @@ const HELP_COMMANDS = [
   ["qmd", "configure", "--help"],
   ["qmd", "refresh", "--help"],
   ["system", "add", "--help"],
+  ["system", "update", "--help"],
   ["repo", "add", "--help"],
   ["worktree", "new", "--help"],
   ["worktree", "inspect", "--help"],
@@ -79,6 +85,31 @@ test("doctor warns when a registered QMD collection targets different content", 
   assert.match(result.stdout, /missing or mismatched/);
 });
 
+test("doctor warns when QMD purpose context is stale", async () => {
+  const root = temporaryDirectory();
+  const workspace = path.join(root, "workspace");
+  assert.equal(
+    (
+      await runCli([
+        "init",
+        workspace,
+        "--name",
+        "Purpose Example",
+        "--description",
+        "Current durable purpose.",
+      ])
+    ).status,
+    0,
+  );
+  const bin = createFakeQmd(root, workspace, "Outdated purpose.");
+  const result = await runCli(["doctor", workspace], {
+    env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /\[warning\] qmd:context/);
+  assert.match(result.stdout, /missing; run braingraph qmd configure/);
+});
+
 test("doctor fails when a required generated artifact is missing", async () => {
   const root = temporaryDirectory();
   const workspace = path.join(root, "workspace");
@@ -125,7 +156,17 @@ test("Obsidian open enforces execution intent while allowing portable dry runs",
 
   const missingIntent = await runCli(["obsidian", "open", workspace]);
   assert.equal(missingIntent.status, 2);
-  assert.match(missingIntent.stderr, /requires --dry-run or --execute/);
+  assert.match(missingIntent.stderr, /requires exactly one/);
+
+  const conflictingIntent = await runCli([
+    "obsidian",
+    "open",
+    workspace,
+    "--dry-run",
+    "--execute",
+  ]);
+  assert.equal(conflictingIntent.status, 2);
+  assert.match(conflictingIntent.stderr, /requires exactly one/);
 
   const dryRun = await runCli(["obsidian", "open", workspace, "--dry-run"]);
   assert.equal(dryRun.status, 0, dryRun.stderr);
@@ -197,9 +238,24 @@ test("tool and QMD commands report missing execution prerequisites", async () =>
 
   const missingIntent = await runCli(["tools", "install"]);
   assert.equal(missingIntent.status, 2);
-  assert.match(missingIntent.stderr, /requires --dry-run or --execute/);
+  assert.match(missingIntent.stderr, /requires exactly one/);
 
-  const missingQmd = await runCli(["qmd", "refresh", workspace, "--dry-run"], {
+  const conflictingIntent = await runCli([
+    "tools",
+    "install",
+    "--dry-run",
+    "--execute",
+  ]);
+  assert.equal(conflictingIntent.status, 2);
+  assert.match(conflictingIntent.stderr, /requires exactly one/);
+
+  const plannedQmd = await runCli(["qmd", "refresh", workspace, "--dry-run"], {
+    env: { PATH: "/usr/bin:/bin" },
+  });
+  assert.equal(plannedQmd.status, 0, plannedQmd.stderr);
+  assert.match(plannedQmd.stdout, /qmd update/);
+
+  const missingQmd = await runCli(["qmd", "refresh", workspace], {
     env: { PATH: "/usr/bin:/bin" },
   });
   assert.equal(missingQmd.status, 2);
@@ -212,15 +268,22 @@ test("tool and QMD commands report missing execution prerequisites", async () =>
   assert.match(missingNpm.stderr, /npm is required/);
 });
 
-function createFakeQmd(root: string, workspace: string): string {
+function createFakeQmd(
+  root: string,
+  workspace: string,
+  contextOverride?: string,
+): string {
   const bin = path.join(root, "bin");
   fs.mkdirSync(bin);
   const vault = path.join(workspace, "Knowledge");
+  const manifest = readWorkspaceManifest(workspace);
+  const collection = manifest.knowledge.qmd.collection;
+  const description = contextOverride ?? manifest.workspace.description;
   const mask =
     "{projects/**/*.md,domains/**/*.md,wiki/**/*.md,reports/**/*.md}";
   fs.writeFileSync(
     path.join(bin, "qmd"),
-    `#!/bin/sh\nprintf 'Collection: doctor-example-brain\\n  Path: %s\\n  Pattern: %s\\n' '${vault}' '${mask}'\n`,
+    `#!/bin/sh\nif [ "$1" = "collection" ] && [ "$2" = "show" ]; then\n  printf 'Collection: %s\\n  Path: %s\\n  Pattern: %s\\n' '${collection}' '${vault}' '${mask}'\nelif [ "$1" = "context" ] && [ "$2" = "list" ]; then\n  printf '%s\\n  / (root)\\n    %s\\n' '${collection}' '${description}'\nfi\n`,
     { encoding: "utf8", mode: 0o755 },
   );
   return bin;

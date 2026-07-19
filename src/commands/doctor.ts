@@ -3,7 +3,12 @@ import path from "node:path";
 
 import { booleanOption, parseArgs, rejectUnknownOptions } from "../args.js";
 import { UsageError } from "../errors.js";
-import { loadWorkspace, validateManifest } from "../manifest.js";
+import {
+  loadWorkspace,
+  SCHEMA_VERSION,
+  TEMPLATE_VERSION,
+  validateManifest,
+} from "../manifest.js";
 import { commandExists, run } from "../process.js";
 import { qmdMask } from "../templates.js";
 import type {
@@ -69,10 +74,14 @@ export function doctorCommand(
 
 function manifestCheck(workspace: LoadedWorkspace): DoctorCheck {
   const errors = validateManifest(workspace.manifest);
+  const staleTemplates = workspace.manifest.templateVersion < TEMPLATE_VERSION;
   return check(
     "manifest",
-    errors.length === 0 ? "ok" : "error",
-    errors.join("; ") || "schema version 1",
+    errors.length > 0 ? "error" : staleTemplates ? "warning" : "ok",
+    errors.join("; ") ||
+      (staleTemplates
+        ? `generated templates ${String(workspace.manifest.templateVersion)} are older than current ${String(TEMPLATE_VERSION)}; review the available migration before updating`
+        : `schema ${String(SCHEMA_VERSION)}, templates ${String(TEMPLATE_VERSION)}`),
   );
 }
 
@@ -83,21 +92,59 @@ function vaultChecks(vault: string): DoctorCheck[] {
     "AGENTS.md",
     "Start Here.md",
     "index.md",
+    "log.md",
     "projects",
     "domains",
     "wiki",
     "raw",
+    "raw/README.md",
+    "raw/processed",
+    "raw/attachments",
     "sources",
+    "sources/Processing ledger.md",
     "reports",
+    "evals/retrieval/README.md",
+    "_templates/Project.md",
+    "_templates/Domain.md",
+    "_templates/Knowledge.md",
+    "_templates/Source.md",
+    "_templates/Report.md",
+    ".gitignore",
     ".obsidian/app.json",
+    ".obsidian/core-plugins.json",
     ".obsidian/templates.json",
   ];
-  return relativePaths.map((relative) => {
+  const checks = relativePaths.map((relative) => {
     const target = path.join(vault, relative);
     return check(
       `vault:${relative}`,
       fs.existsSync(target) ? "ok" : "error",
       target,
+    );
+  });
+  checks.push(...placeholderChecks(vault));
+  return checks;
+}
+
+function placeholderChecks(vault: string): DoctorCheck[] {
+  const files: readonly (readonly [string, string])[] = [
+    ["root-instructions", path.resolve(vault, "..", "AGENTS.md")],
+    ["vault-instructions", path.join(vault, "AGENTS.md")],
+    ["start-here", path.join(vault, "Start Here.md")],
+  ];
+  return files.map(([label, file]) => {
+    if (!fs.existsSync(file)) {
+      return check(
+        `template-placeholders:${label}`,
+        "error",
+        `missing: ${file}`,
+      );
+    }
+    const unresolved = /\{\{[A-Z0-9_]+\}\}/.test(fs.readFileSync(file, "utf8"));
+    return check(
+      `template-placeholders:${label}`,
+      unresolved ? "error" : "ok",
+      unresolved ? `unresolved placeholder in ${file}` : file,
     );
   });
 }
@@ -141,6 +188,16 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
     "qmd",
     "SKILL.md",
   );
+  const contextResult = run("qmd", ["context", "list"], {
+    allowFailure: true,
+  });
+  const contextMatches =
+    contextResult.status === 0 &&
+    qmdContextMatches(
+      contextResult.stdout,
+      collection,
+      workspace.manifest.workspace.description,
+    );
   return [
     check("qmd:cli", "ok", "installed"),
     check(
@@ -154,6 +211,13 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
       "qmd:agent-skill",
       fs.existsSync(qmdSkill) ? "ok" : "warning",
       qmdSkill,
+    ),
+    check(
+      "qmd:context",
+      contextMatches ? "ok" : "warning",
+      contextMatches
+        ? workspace.manifest.workspace.description
+        : `missing; run braingraph qmd configure ${workspace.root}`,
     ),
   ];
 }
@@ -171,19 +235,56 @@ function softwareChecks(workspace: LoadedWorkspace): DoctorCheck[] {
   for (const [id, repository] of Object.entries(
     workspace.manifest.repositories,
   )) {
-    const hub = path.join(workspace.root, repository.path);
     checks.push(
-      check(`repository:${id}:hub`, fs.existsSync(hub) ? "ok" : "error", hub),
-    );
-    const anchor = path.join(hub, ".bare");
-    checks.push(
-      check(
-        `repository:${id}:anchor`,
-        fs.existsSync(anchor) ? "ok" : "warning",
-        anchor,
-      ),
+      ...repositoryChecks(workspace.root, id, repository, gitInstalled),
     );
   }
+  return checks;
+}
+
+function repositoryChecks(
+  workspaceRoot: string,
+  id: string,
+  repository: LoadedWorkspace["manifest"]["repositories"][string],
+  gitInstalled: boolean,
+): DoctorCheck[] {
+  const hub = path.join(workspaceRoot, repository.path);
+  const anchor = path.join(hub, ".bare");
+  const instructions = path.join(hub, "AGENTS.md");
+  const stable = path.join(hub, repository.stableWorktree);
+  const stableExists = fs.existsSync(stable);
+  const checks = [
+    check(`repository:${id}:hub`, fs.existsSync(hub) ? "ok" : "error", hub),
+    check(
+      `repository:${id}:anchor`,
+      fs.existsSync(anchor) ? "ok" : "warning",
+      anchor,
+    ),
+    check(
+      `repository:${id}:instructions`,
+      fs.existsSync(instructions) ? "ok" : "error",
+      instructions,
+    ),
+    check(
+      `repository:${id}:stable-worktree`,
+      stableExists ? "ok" : "warning",
+      stable,
+    ),
+  ];
+  if (!gitInstalled || !stableExists) return checks;
+
+  const result = run(
+    "git",
+    ["-C", stable, "rev-parse", "--is-inside-work-tree"],
+    { allowFailure: true },
+  );
+  checks.push(
+    check(
+      `repository:${id}:stable-worktree-git`,
+      result.status === 0 && result.stdout.trim() === "true" ? "ok" : "error",
+      stable,
+    ),
+  );
   return checks;
 }
 
@@ -212,6 +313,23 @@ function qmdCollectionMatches(
     canonicalPath(pathMatch ?? "") === canonicalPath(vault) &&
     patternMatch === mask
   );
+}
+
+function qmdContextMatches(
+  stdout: string,
+  collection: string,
+  description: string,
+): boolean {
+  const lines = stdout.split("\n");
+  const collectionLine = lines.findIndex((line) => line === collection);
+  if (collectionLine === -1) return false;
+  const following = lines.slice(collectionLine + 1);
+  const nextCollection = following.findIndex(
+    (line) => line.length > 0 && !/^\s/.test(line),
+  );
+  const section =
+    nextCollection === -1 ? following : following.slice(0, nextCollection);
+  return section.some((line) => line.trim() === description.trim());
 }
 
 function canonicalPath(value: string): string {

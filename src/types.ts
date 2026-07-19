@@ -1,8 +1,16 @@
 export type WorkspaceProfile = "knowledge" | "software";
+export type WorkspaceScope =
+  | "project"
+  | "organization"
+  | "professional-domain"
+  | "personal-domain"
+  | "mixed";
+export type MaintenanceMode = "proposal-first" | "delegated";
 
 export type ExternalSystemRole =
   "source" | "intake" | "execution" | "communication" | "reference" | "archive";
 
+export type ExternalSystemStatus = "active" | "planned" | "inactive";
 export type ExternalReadAccess = "none" | "manual" | "connector";
 export type ExternalWriteAccess = "prohibited" | "human-approval" | "delegated";
 export type ExternalFreshness =
@@ -14,16 +22,20 @@ export type Sensitivity = "public" | "private" | "confidential" | "regulated";
 export interface ExternalSystem {
   id: string;
   name: string;
+  status: ExternalSystemStatus;
   url?: string;
   roles: ExternalSystemRole[];
   owns: string[];
+  identifiers: string[];
   access: {
     read: ExternalReadAccess;
     write: ExternalWriteAccess;
   };
+  writeScope?: string;
   freshness: ExternalFreshness;
   capture: ExternalCapture;
   sensitivity: Sensitivity;
+  fallback: string;
   notes?: string;
 }
 
@@ -39,13 +51,21 @@ export interface RepositoryConfig {
 export interface WorkspaceManifest {
   $schema: string;
   schemaVersion: 1;
+  templateVersion: number;
   workspace: {
     name: string;
     slug: string;
+    description: string;
+    scope: WorkspaceScope;
+    sensitivity: Sensitivity;
     profiles: WorkspaceProfile[];
   };
   knowledge: {
     directory: string;
+    maintenance: {
+      mode: MaintenanceMode;
+      delegatedScope?: string;
+    };
     obsidian: {
       enabled: true;
       vaultName: string;

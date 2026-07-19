@@ -7,7 +7,11 @@ import {
   QMD_HELP,
 } from "./commands/qmd.js";
 import { repoAddCommand, REPO_HELP } from "./commands/repo.js";
-import { systemAddCommand, SYSTEM_HELP } from "./commands/system.js";
+import {
+  systemAddCommand,
+  systemUpdateCommand,
+  SYSTEM_HELP,
+} from "./commands/system.js";
 import { toolsInstallCommand, TOOLS_HELP } from "./commands/tools.js";
 import {
   worktreeInspectCommand,
@@ -32,7 +36,7 @@ Usage:
   braingraph tools install [directory] [options]
   braingraph obsidian open [directory] [options]
   braingraph qmd configure|refresh [directory] [options]
-  braingraph system add <id> [options]
+  braingraph system add|update <id> [options]
   braingraph repo add <id> [options]
   braingraph worktree new|inspect|remove <repository> <name> [options]
 
@@ -49,6 +53,7 @@ const NESTED_COMMANDS = new Map<string, CommandHandler>([
   ["qmd configure", qmdConfigureCommand],
   ["qmd refresh", qmdRefreshCommand],
   ["system add", systemAddCommand],
+  ["system update", systemUpdateCommand],
   ["repo add", repoAddCommand],
   ["worktree new", worktreeNewCommand],
   ["worktree inspect", worktreeInspectCommand],

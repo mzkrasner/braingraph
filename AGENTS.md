@@ -25,6 +25,10 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
 - Never force-remove worktrees or delete branches as an implied cleanup step.
 - Keep generated Markdown readable without Braingraph installed.
 - Keep QMD caches and indexes outside generated repositories; only configuration and instructions belong in the workspace.
+- Keep schema, runtime validation, TypeScript contracts, CLI help, generated instructions, documentation, and tests semantically aligned.
+- Bump `templateVersion` when a future release changes the generated governance or template contract, and provide a reviewable migration path before rewriting existing workspaces.
+- Preserve a clear authorization boundary: proactive maintenance proposals are expected, but connector availability is never write permission.
+- Persist setup decisions that fresh agents must follow, such as baseline sensitivity and delegated local-maintenance scope; do not leave them only in setup conversation history.
 
 ## Setup Requests
 

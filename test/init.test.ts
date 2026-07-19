@@ -18,11 +18,25 @@ test("init creates an Obsidian and QMD-ready knowledge workspace", async () => {
     workspace,
     "--name",
     "Example Workspace",
+    "--description",
+    "Durable knowledge for a fictional example.",
+    "--scope",
+    "project",
   ]);
 
   assert.equal(result.status, 0, result.stderr);
   const manifest = readWorkspaceManifest(workspace);
   assert.equal(manifest.knowledge.obsidian.enabled, true);
+  assert.equal(manifest.templateVersion, 1);
+  assert.equal(manifest.workspace.scope, "project");
+  assert.equal(manifest.workspace.sensitivity, "private");
+  assert.deepEqual(manifest.knowledge.maintenance, {
+    mode: "proposal-first",
+  });
+  assert.equal(
+    manifest.workspace.description,
+    "Durable knowledge for a fictional example.",
+  );
   assert.equal(manifest.knowledge.qmd.enabled, true);
   assert.equal(manifest.knowledge.qmd.collection, "example-workspace-brain");
   assert.ok(
@@ -35,6 +49,12 @@ test("init creates an Obsidian and QMD-ready knowledge workspace", async () => {
   );
   assert.ok(fs.existsSync(path.join(workspace, "Knowledge", ".gitignore")));
   assert.ok(fs.existsSync(path.join(workspace, "Knowledge", "projects")));
+  assert.ok(
+    fs.existsSync(path.join(workspace, "Knowledge", "raw", "README.md")),
+  );
+  assert.ok(
+    fs.existsSync(path.join(workspace, "Knowledge", "_templates", "Source.md")),
+  );
   assert.match(
     fs.readFileSync(path.join(workspace, "AGENTS.md"), "utf8"),
     /QMD Retrieval/,
@@ -105,17 +125,55 @@ test("init preserves evolved manifest state and can add the software profile", a
         "source",
         "--owns",
         "reference files",
+        "--identifier",
+        "native document ID",
+        "--fallback",
+        "Stop and request an approved export.",
       ])
     ).status,
     0,
   );
 
-  const result = await runCli(["init", workspace, "--profile", "software"]);
+  const result = await runCli([
+    "init",
+    workspace,
+    "--profile",
+    "software",
+    "--description",
+    "Updated durable purpose.",
+    "--scope",
+    "organization",
+    "--sensitivity",
+    "confidential",
+    "--maintenance-mode",
+    "delegated",
+    "--maintenance-scope",
+    "Keep durable project and domain synthesis current after completed work.",
+  ]);
   assert.equal(result.status, 0, result.stderr);
   const manifest = readWorkspaceManifest(workspace);
   assert.equal(manifest.externalSystems.length, 1);
   assert.deepEqual(manifest.workspace.profiles, ["knowledge", "software"]);
+  assert.equal(manifest.workspace.description, "Updated durable purpose.");
+  assert.equal(manifest.workspace.scope, "organization");
+  assert.equal(manifest.workspace.sensitivity, "confidential");
+  assert.deepEqual(manifest.knowledge.maintenance, {
+    mode: "delegated",
+    delegatedScope:
+      "Keep durable project and domain synthesis current after completed work.",
+  });
   assert.ok(fs.existsSync(path.join(workspace, "repositories", "README.md")));
+
+  const proposalFirst = await runCli([
+    "init",
+    workspace,
+    "--maintenance-mode",
+    "proposal-first",
+  ]);
+  assert.equal(proposalFirst.status, 0, proposalFirst.stderr);
+  assert.deepEqual(readWorkspaceManifest(workspace).knowledge.maintenance, {
+    mode: "proposal-first",
+  });
 });
 
 test("init validates profiles and plans optional setup without external writes", async () => {
@@ -130,6 +188,50 @@ test("init validates profiles and plans optional setup without external writes",
   ]);
   assert.equal(invalid.status, 2);
   assert.match(invalid.stderr, /unsupported profile/);
+
+  const invalidScope = await runCli([
+    "init",
+    path.join(parent, "invalid-scope"),
+    "--name",
+    "Invalid Scope",
+    "--scope",
+    "everything",
+  ]);
+  assert.equal(invalidScope.status, 2);
+  assert.match(invalidScope.stderr, /scope must be one of/);
+
+  const invalidSensitivity = await runCli([
+    "init",
+    path.join(parent, "invalid-sensitivity"),
+    "--name",
+    "Invalid Sensitivity",
+    "--sensitivity",
+    "secretish",
+  ]);
+  assert.equal(invalidSensitivity.status, 2);
+  assert.match(invalidSensitivity.stderr, /sensitivity must be one of/);
+
+  const missingMaintenanceScope = await runCli([
+    "init",
+    path.join(parent, "missing-maintenance-scope"),
+    "--name",
+    "Missing Maintenance Scope",
+    "--maintenance-mode",
+    "delegated",
+  ]);
+  assert.equal(missingMaintenanceScope.status, 2);
+  assert.match(missingMaintenanceScope.stderr, /maintenance-scope is required/);
+
+  const multilineDescription = await runCli([
+    "init",
+    path.join(parent, "multiline-description"),
+    "--name",
+    "Multiline Description",
+    "--description",
+    "First line\nSecond line",
+  ]);
+  assert.equal(multilineDescription.status, 2);
+  assert.match(multilineDescription.stderr, /description must be one line/);
 
   const workspace = path.join(parent, "planned");
   const planned = await runCli([

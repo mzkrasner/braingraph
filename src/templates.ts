@@ -86,12 +86,12 @@ export function knowledgeReplacements(
 
 function qmdRootSection(manifest: WorkspaceManifest): string {
   const collection = manifest.knowledge.qmd.collection;
-  return `## QMD Retrieval\n\nQMD is the configured agent discovery layer for this workspace. The collection is \`${collection}\`. Search results are leads: retrieve complete source sections and cite the Markdown files. The QMD index and model cache are local, rebuildable state and must not be committed or treated as authority. Run \`braingraph qmd refresh\` after material knowledge changes when background refresh is not active.`;
+  return `## QMD Retrieval\n\nQMD is the configured agent discovery layer for this workspace. The collection is \`${collection}\`, with the workspace purpose registered as collection context. Search results are leads: retrieve complete source sections and cite the Markdown files. The QMD configuration, index, and model cache are local, rebuildable state and must not be committed or treated as authority. Run \`braingraph qmd refresh\` after material knowledge changes when background refresh is not active.`;
 }
 
 function qmdRetrievalSection(manifest: WorkspaceManifest): string {
   const collection = manifest.knowledge.qmd.collection;
-  return `### QMD\n\nUse \`qmd search <terms> -c ${collection}\` for exact identifiers and a structured \`qmd query\` with agent-authored intent and lexical/semantic terms for conceptual retrieval. Fetch material results with \`qmd get\` or \`qmd multi-get\`. Read governing files and source registries directly because they are intentionally excluded from semantic ranking. If QMD is unavailable or stale, use direct Markdown and exact filesystem search rather than treating the knowledge as inaccessible.`;
+  return `### QMD\n\nUse \`qmd search <terms> -c ${collection}\` for exact identifiers and \`qmd query <intent> -c ${collection}\` or a structured query document for conceptual retrieval. Fetch material results by \`qmd://\` path or document ID with \`qmd get\` or \`qmd multi-get\`. Read governing files and source registries directly because they are intentionally excluded from semantic ranking. If QMD is unavailable or stale, use direct Markdown and exact filesystem search rather than treating the knowledge as inaccessible.`;
 }
 
 function qmdStartSection(manifest: WorkspaceManifest): string {
@@ -100,5 +100,5 @@ function qmdStartSection(manifest: WorkspaceManifest): string {
 }
 
 function softwareRootSection(): string {
-  return `## Software Profile\n\nRead \`braingraph.json\` before assuming software repositories are part of this workspace. When the \`software\` profile is enabled, configured repositories live under \`repositories/\` as worktree hubs. Read each hub's \`AGENTS.md\`, then the selected worktree's repository-native instructions. Use isolated feature worktrees for edits and stable integration worktrees only for orientation. Cleanup is inspection-first and requires exact human confirmation; it never deletes branches implicitly. When the profile is absent, do not introduce repository or worktree structure without human approval.`;
+  return `## Software Profile\n\nRead \`braingraph.json\` before assuming software repositories are part of this workspace. When the \`software\` profile is enabled, configured repositories live under \`repositories/\` as worktree hubs. Read each hub's \`AGENTS.md\`, then the selected worktree's repository-native instructions. Use isolated feature worktrees for edits and stable integration worktrees only for orientation. Cleanup is inspection-first, refuses dirty worktrees and unpushed commits, requires exact human confirmation, and never deletes branches implicitly. When the profile is absent, do not introduce repository or worktree structure without human approval.`;
 }

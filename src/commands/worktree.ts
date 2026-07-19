@@ -181,6 +181,7 @@ export function worktreeRemoveCommand(
     throw new UsageError("processes are using the worktree");
   if (positionals[1] === inspection.stableWorktree)
     throw new UsageError("stable integration worktrees are protected");
+  assertRecoverableBranchState(inspection);
 
   const execute = booleanOption(options, "execute");
   const dryRun = booleanOption(options, "dry-run");
@@ -221,6 +222,25 @@ export function worktreeRemoveCommand(
     `${dryRun ? "[dry-run] would preserve" : "Preserved"} branch: ${inspection.branch ?? "(detached)"}\n`,
   );
   return 0;
+}
+
+function assertRecoverableBranchState(inspection: WorktreeInspection): void {
+  const commits = inspection.commitsNotInIntegrationBranch;
+  if (commits === null) {
+    throw new UsageError(
+      "could not verify commits against the integration branch; fetch and inspect before cleanup",
+    );
+  }
+  if (commits === 0) return;
+  if (
+    inspection.upstream === null ||
+    inspection.ahead === null ||
+    inspection.ahead > 0
+  ) {
+    throw new UsageError(
+      "worktree has commits not recoverable from its upstream; push or otherwise preserve them before cleanup",
+    );
+  }
 }
 
 function inspectConfiguredWorktree(

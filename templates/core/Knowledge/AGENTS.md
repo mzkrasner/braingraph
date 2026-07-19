@@ -15,6 +15,25 @@ This knowledge base is a maintained, agent-first wiki. Markdown is canonical. Tr
 - `index.md` is a curated navigation map.
 - `log.md` is the append-only knowledge-maintenance history.
 
+## Proactive Evolution And Write Boundary
+
+The graph should evolve alongside the work without becoming an unsolicited activity log.
+
+At the end of meaningful research, implementation, review, planning, or stakeholder work, check whether the session produced any of the following:
+
+- a durable decision or changed boundary;
+- a clarified workflow, system, term, policy, or relationship;
+- a new or revised authoritative source;
+- a contradiction, uncertainty, or stale claim that future work must see; or
+- reusable knowledge currently trapped in a temporary artifact or conversation.
+
+Do not promote transient task status, raw conversation summaries, exhaustive ticket history, or speculative conclusions.
+
+- When the human asked to ingest, document, update, or maintain knowledge, apply the scoped local Markdown changes after surfacing conflicts and exclusions.
+- During unrelated work, read `maintenance` in `../braingraph.json`. In `proposal-first` mode, propose a compact packet with affected files, supported claims, sources, exclusions, and unresolved questions, then wait before writing.
+- In `delegated` mode, apply only routine local Markdown maintenance within the manifest's `delegatedScope`, report the files changed, and propose anything outside that scope.
+- External writes, destructive actions, disclosure changes, and new sensitivity boundaries always require their own authorization.
+
 ## Information Architecture
 
 Taxonomy is a claim about the world, not a filing convenience. Before adding a hierarchy, project, domain, hub, split, or merge, establish the evidence for its owner, outcome, lifecycle, and boundary.
@@ -26,6 +45,7 @@ Use these roles:
 - **Concept hub:** an organizing idea that connects several meaningful subtopics without implying common ownership.
 - **Atomic page:** one reusable system, workflow, term, policy, principle, or idea.
 - **Source registry:** what was reviewed, at which source revision, and what changed.
+- **Dated report:** a sanitized immutable snapshot used as historical evidence, never as an unstated current-state owner.
 
 Before changing taxonomy:
 
@@ -56,7 +76,7 @@ Each active or completed initiative should have exactly one canonical page under
 
 Project pages synthesize objective, scope, decisions, open questions, knowledge links, and canonical sources. They must not mirror entire ticket backlogs, pull-request histories, message threads, or raw source documents.
 
-Keep volatile status out of durable prose. Link to the live owner. When a dated snapshot materially explains a decision, save a sanitized report and label its date and source revision.
+Keep volatile status out of durable prose. A project `status` is only a coarse lifecycle label, and `last_reviewed` dates the synthesis. Link to the live execution owner. When a dated snapshot materially explains a decision, save a sanitized report and label its date and source revision.
 
 ## Domain Hubs
 
@@ -71,10 +91,11 @@ When asked to ingest source material:
 3. Inspect directly linked authoritative material that materially supports or contradicts the durable claims.
 4. Classify content as durable, volatile, sensitive, duplicative, inaccessible, or out of scope.
 5. Search existing projects, domains, and wiki pages before creating anything.
-6. Prepare a review packet describing proposed updates, conflicts, exclusions, affected files, and any taxonomy proposal.
-7. Apply only the changes the human approves when review is required by the source or workflow.
-8. Update the source ledger and `log.md` after successful application.
-9. Move local raw source files to `raw/processed/`; never delete them implicitly.
+6. Determine which local changes are authorized by the current request or manifest maintenance policy.
+7. For anything not authorized, present a review packet describing proposed updates, conflicts, exclusions, affected files, and any taxonomy proposal.
+8. Apply authorized changes, stopping on unresolved conflicts or approval-gated boundaries.
+9. Update the source ledger and `log.md` only after authorized changes are applied successfully. Use one stable source ID and the exact revision, modified time, or content fingerprint available from the owner.
+10. Move local raw source files to `raw/processed/`; never delete them implicitly.
 
 Do not ingest credentials, sensitive personal records, regulated data, or volatile operational trackers merely because they are accessible.
 
@@ -85,12 +106,15 @@ Do not ingest credentials, sensitive personal records, regulated data, or volati
 - Separate sourced fact, existing interpretation, and new inference.
 - Surface conflicts, weak evidence, freshness concerns, and important gaps.
 - Save a new synthesis only when the human asks or clearly approves the write.
+- A direct request to ingest, update, document, or maintain this knowledge base is sufficient approval for the scoped local write; it is not approval for external side effects or taxonomy expansion.
 
 {{QMD_RETRIEVAL_SECTION}}
 
 ## Knowledge Maintenance
 
-When linting the knowledge base, report contradictions, stale claims, orphans, broken links, duplicate pages, index drift, undeveloped concepts, and pages that combine unrelated ideas. Linting is diagnostic; do not reorganize knowledge without separate approval.
+When linting the knowledge base, report contradictions, stale claims, orphans, broken links, duplicate pages, index drift, undeveloped concepts, unprocessed sources, and pages that combine unrelated ideas. Linting is diagnostic; do not reorganize knowledge without separate approval.
+
+Propose a maintenance pass when a major milestone closes, a source changes materially, retrieval repeatedly misses the right page, a project changes ownership or outcome, or several small inconsistencies accumulate. Do not impose calendar-based churn when there is no evidence of drift.
 
 Taxonomy changes are infrequent maintenance events. After an approved change, update only affected instructions, navigation, retrieval masks, and evaluation fixtures. Do not bulk-migrate unaffected history for cosmetic consistency.
 

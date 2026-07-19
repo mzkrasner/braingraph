@@ -1,6 +1,7 @@
 ---
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+last_reviewed: YYYY-MM-DD
 type: domain
 tags: [domain]
 external_state_checked: not-checked
@@ -16,7 +17,11 @@ external_state_checked: not-checked
 
 ## Current Understanding
 
+Keep this durable and date-sensitive. Link to external owners for live metrics, queues, or execution state.
+
 ## Open Questions
+
+## Next Review Trigger
 
 ## Related Projects
 

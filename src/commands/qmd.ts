@@ -13,8 +13,9 @@ export const QMD_HELP = `Usage:
   braingraph qmd refresh [directory] [--embed] [--dry-run]
 
 configure registers the vault collection, installs QMD's agent skill into the
-workspace, indexes Markdown, and embeds by default. refresh updates an existing
-collection and embeds only when --embed is supplied.`;
+workspace, adds or updates workspace-purpose context, indexes Markdown, and embeds by
+default. refresh updates the index and embeds only when --embed is supplied.
+Dry runs remain available before QMD is installed.`;
 
 /** Registers and initially indexes the configured QMD collection. */
 export function qmdConfigureCommand(
@@ -31,8 +32,9 @@ export function qmdConfigureCommand(
   if (positionals.length > 1)
     throw new UsageError("qmd configure accepts at most one directory");
   const workspace = loadWorkspace(positionals[0] ?? process.cwd());
-  ensureQmd();
   const dryRun = booleanOption(options, "dry-run");
+  const qmdAvailable = commandExists("qmd");
+  if (!dryRun && !qmdAvailable) ensureQmd();
   const embed = booleanOption(options, "embed", true);
   const qmd = workspace.manifest.knowledge.qmd;
   const vault = path.join(
@@ -41,10 +43,12 @@ export function qmdConfigureCommand(
   );
   const mask = qmdMask(qmd.include);
 
-  const existing = run("qmd", ["collection", "show", qmd.collection], {
-    allowFailure: true,
-  });
-  if (existing.status === 0) {
+  const existing = qmdAvailable
+    ? run("qmd", ["collection", "show", qmd.collection], {
+        allowFailure: true,
+      })
+    : undefined;
+  if (existing?.status === 0) {
     assertMatchingCollection(existing.stdout, vault, mask, qmd.collection);
     output.write(`QMD collection already matches: ${qmd.collection}\n`);
   } else {
@@ -56,6 +60,17 @@ export function qmdConfigureCommand(
     );
   }
 
+  executeOrPrint(
+    "qmd",
+    [
+      "context",
+      "add",
+      `qmd://${qmd.collection}`,
+      workspace.manifest.workspace.description,
+    ],
+    dryRun,
+    output,
+  );
   executeOrPrint("qmd", ["skill", "install"], dryRun, output, workspace.root);
   executeOrPrint("qmd", ["update"], dryRun, output);
   if (embed)
@@ -78,8 +93,8 @@ export function qmdRefreshCommand(
   if (positionals.length > 1)
     throw new UsageError("qmd refresh accepts at most one directory");
   const workspace = loadWorkspace(positionals[0] ?? process.cwd());
-  ensureQmd();
   const dryRun = booleanOption(options, "dry-run");
+  if (!dryRun) ensureQmd();
   executeOrPrint("qmd", ["update"], dryRun, output);
   if (booleanOption(options, "embed")) {
     executeOrPrint(

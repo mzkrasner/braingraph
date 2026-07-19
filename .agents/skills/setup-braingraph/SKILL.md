@@ -13,21 +13,22 @@ Build the smallest workspace that satisfies the human's current needs while pres
 2. Determine whether the user is creating a new workspace or adopting an existing directory.
 3. Establish only the missing decisions:
    - workspace name and location;
-   - intended scope: project, organization, professional domain, personal domain, or mixed;
+   - a one-sentence durable purpose and intended scope: project, organization, professional domain, personal domain, or mixed;
    - existing notes or sources to preserve;
-   - privacy and sensitivity boundaries;
+   - baseline workspace sensitivity and any stricter source-specific boundaries;
    - permission to install or configure Obsidian and QMD;
    - external systems relevant now;
    - whether the software profile and Git repositories are relevant.
-4. For each external system, classify ownership, role, identity, freshness, read/write access, capture mode, sensitivity, and unavailable-connector behavior. Read `references/system-assessment.md` when integrations are involved.
-5. Present a concise setup proposal. Do not install tools, create files, clone repositories, or mutate external systems before the user approves it.
-6. Run every proposed mutating Braingraph command with `--dry-run` first.
-7. Show the consequential dry-run actions and resolve conflicts without overwriting existing files.
-8. Apply the approved commands without `--dry-run`.
-9. Configure the QMD collection unless the user explicitly declines installation; keep the generated Markdown operational either way.
-10. Offer a dry run of `braingraph obsidian open`, then open the generated `Start Here.md` only after approval.
-11. Run `braingraph doctor <workspace>` and report capabilities that remain unconfigured.
-12. Give the user the generated `Start Here.md` path and a concise explanation of the ongoing human-agent loop.
+4. For each external system, classify lifecycle status, ownership, role, stable record identity, freshness, read/write access, delegated write scope when applicable, capture mode, sensitivity, and unavailable-or-conflicting-evidence behavior. Read `references/system-assessment.md` when integrations are involved.
+5. Agree on the ongoing maintenance boundary: `proposal-first` by default, or `delegated` with an explicit narrow scope for routine local Markdown updates. Persist that choice through `braingraph init`; external writes and taxonomy changes remain separately approval-gated.
+6. Present a concise setup proposal. Do not install tools, create files, clone repositories, or mutate external systems before the user approves it.
+7. Run every proposed mutating Braingraph command with `--dry-run` first.
+8. Show the consequential dry-run actions and resolve conflicts without overwriting existing files.
+9. Apply the approved commands: use `--execute` where the command requires it, and otherwise repeat without `--dry-run`.
+10. Configure the QMD collection and workspace-purpose context unless the user explicitly declines installation; keep the generated Markdown operational either way.
+11. Offer a dry run of `braingraph obsidian open`, then open the generated `Start Here.md` only after approval.
+12. Run `braingraph doctor <workspace>` and report capabilities that remain unconfigured.
+13. Give the user the generated `Start Here.md` path and explain how agents will propose or apply durable updates at meaningful milestones under the persisted maintenance boundary.
 
 ## Constraints
 
@@ -39,6 +40,7 @@ Build the smallest workspace that satisfies the human's current needs while pres
 - Do not store credentials, tokens, raw connector payloads, or prohibited sensitive data in the workspace.
 - Do not treat connector access as write authorization.
 - Do not create speculative taxonomy. Start minimally and let evidence justify new boundaries.
+- Do not treat setup completion as the end of knowledge maintenance. Fresh agents should proactively surface durable update candidates as work continues.
 
 ## Existing Workspaces
 
@@ -49,6 +51,8 @@ Build the smallest workspace that satisfies the human's current needs while pres
 3. propose mappings into Braingraph roles;
 4. initialize only after the mapping is approved; and
 5. leave migration as a separate, reviewable step.
+
+Use `braingraph system update` for changed access, ownership, identity, or lifecycle rules. Mark retired systems `inactive` so provenance remains intelligible; do not silently delete their history.
 
 ## Software Profile
 
