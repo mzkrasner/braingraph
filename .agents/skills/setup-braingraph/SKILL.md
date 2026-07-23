@@ -14,29 +14,34 @@ Build the smallest workspace that satisfies the human's current needs while pres
 3. Establish only the missing decisions:
    - workspace name and location;
    - a one-sentence durable purpose and intended scope: project, organization, professional domain, personal domain, or mixed;
+   - the operational roots and representative directories where the human normally launches agents or performs work;
    - existing notes or sources to preserve;
    - baseline workspace sensitivity and any stricter source-specific boundaries;
    - permission to install or configure Obsidian and QMD;
    - external systems relevant now;
    - whether the software profile and Git repositories are relevant.
-4. For each external system, classify lifecycle status, ownership, role, stable record identity, freshness, read/write access, delegated write scope when applicable, capture mode, sensitivity, and unavailable-or-conflicting-evidence behavior. Read `references/system-assessment.md` when integrations are involved.
-5. Agree on the ongoing maintenance boundary: `proposal-first` by default, or `delegated` with an explicit narrow scope for routine local Markdown updates. Persist that choice through `braingraph init`; external writes and taxonomy changes remain separately approval-gated.
-6. Present a concise setup proposal. Do not install tools, create files, clone repositories, or mutate external systems before the user approves it.
-7. Run every proposed mutating Braingraph command with `--dry-run` first.
-8. Show the consequential dry-run actions and resolve conflicts without overwriting existing files.
-9. Apply the approved commands: use `--execute` where the command requires it, and otherwise repeat without `--dry-run`.
-10. Configure the QMD collection and workspace-purpose context unless the user explicitly declines installation; keep the generated Markdown operational either way.
-11. Verify the generated cross-agent contract: each scoped `AGENTS.md` is canonical, each sibling `CLAUDE.md` contains only `@AGENTS.md`, and reusable project skills exist only under `.agents/skills`.
-12. Offer a dry run of `braingraph obsidian open`, then open the generated `Start Here.md` only after approval.
-13. Run `braingraph doctor <workspace>` and report capabilities that remain unconfigured, including instruction-adapter drift or duplicate vendor skill names.
-14. Give the user the generated `Start Here.md` path and explain how agents will propose or apply durable updates at meaningful milestones under the persisted maintenance boundary.
-15. Review the completed setup for repeatable friction, unsupported assumptions, or behavior that did not generalize to the user's environment. When a likely Braingraph product gap remains after local diagnosis, read `references/product-feedback.md` and follow its duplicate-check, sanitization, approval, and issue-filing workflow.
+4. Before choosing the workspace location, read `references/workspace-topology.md`. Inventory the agreed operational roots, representative repository checkouts and worktrees, existing instruction files, and the discovery path each in-scope agent client will use. Do not infer the operational root from the setup repository, the current shell directory, or one convenient checkout.
+5. For each external system, classify lifecycle status, ownership, role, stable record identity, freshness, read/write access, delegated write scope when applicable, capture mode, sensitivity, and unavailable-or-conflicting-evidence behavior. Read `references/system-assessment.md` when integrations are involved.
+6. Agree on the ongoing maintenance boundary: `proposal-first` by default, or `delegated` with an explicit narrow scope for routine local Markdown updates. Persist that choice through `braingraph init`; external writes and taxonomy changes remain separately approval-gated.
+7. Present a concise setup proposal. Include the proposed coordination root, knowledge root, repository modes, and a discovery matrix showing how agents launched from each representative working location will find the canonical workspace and relevant repository hub. Identify unresolved discovery gaps explicitly. Do not install tools, create files, clone repositories, or mutate external systems before the user approves it.
+8. Run every proposed mutating Braingraph command with `--dry-run` first.
+9. Show the consequential dry-run actions and resolve conflicts without overwriting existing files.
+10. Apply the approved commands: use `--execute` where the command requires it, and otherwise repeat without `--dry-run`.
+11. Configure the QMD collection and workspace-purpose context unless the user explicitly declines installation; keep the generated Markdown operational either way.
+12. Verify the generated cross-agent contract: each scoped `AGENTS.md` is canonical, each sibling `CLAUDE.md` contains only `@AGENTS.md`, and reusable project skills exist only under `.agents/skills`.
+13. Validate discovery from every representative working location in the approved matrix. Use a fresh-agent or equivalent read-only check to prove that the exact `braingraph.json`, workspace `AGENTS.md`, `Start Here.md`, and relevant repository hub can be located without relying on prior chat context or an unrelated global instruction.
+14. Offer a dry run of `braingraph obsidian open`, then open the generated `Start Here.md` only after approval.
+15. Run `braingraph doctor <workspace>` and report capabilities that remain unconfigured, including instruction-adapter drift or duplicate vendor skill names. Treat doctor as validation of registered artifacts, not proof that unregistered sibling worktrees or external launch locations can discover the workspace.
+16. Give the user the generated `Start Here.md` path and explain how agents will propose or apply durable updates at meaningful milestones under the persisted maintenance boundary.
+17. Review the completed setup for repeatable friction, unsupported assumptions, or behavior that did not generalize to the user's environment. When a likely Braingraph product gap remains after local diagnosis, read `references/product-feedback.md` and follow its duplicate-check, sanitization, approval, and issue-filing workflow.
 
 ## Constraints
 
 - Do not assume the user already has Obsidian or QMD installed. They are Braingraph defaults; detect them and obtain approval before installation.
 - Do not assume the user uses GitHub, Linear, Google Drive, or any other external system.
 - Do not enable the software profile merely because the setup repository is software.
+- Do not place the workspace beside the user's actual work merely because that location is convenient. Either make the coordination root discoverable from normal launch locations or define explicit, non-duplicating adapters.
+- Do not assume that registering or bridging one checkout covers sibling Git worktrees, other clones, or directories outside that checkout.
 - Do not copy external content when linking or summarizing preserves the correct source of truth.
 - Do not move or rewrite existing notes without a separate migration proposal and approval.
 - Do not store credentials, tokens, raw connector payloads, or prohibited sensitive data in the workspace.
@@ -60,7 +65,7 @@ Use `braingraph system update` for changed access, ownership, identity, or lifec
 
 ## Software Profile
 
-When the user enables software support, register each repository separately with its actual integration and optional production branch. Use `repo add --dry-run` when Braingraph should create and manage a new local anchor/worktree layout. Use `repo attach --dry-run` when an established checkout must retain its existing Git layout; explain that only the portable repository identity enters `braingraph.json`, while its absolute path enters ignored local state. Prefer the generated ignored discovery bridge when the checkout has no root instructions. If root `AGENTS.md` or `CLAUDE.md` already exists, use `--no-bridge` only after establishing how those repository-native instructions will point agents to the canonical workspace.
+When the user enables software support, register each repository separately with its actual integration and optional production branch. Use `repo add --dry-run` when Braingraph should create and manage a new local anchor/worktree layout. Use `repo attach --dry-run` when an established checkout must retain its existing Git layout; explain that only the portable repository identity enters `braingraph.json`, while its absolute path enters ignored local state. Prefer the generated ignored discovery bridge when the checkout has no root instructions. That bridge covers only the exact attached checkout. If the repository has sibling worktrees or other clones, establish their discovery path separately through an applicable parent coordinator, tracked repository-native instructions, or explicit local adapters. If root `AGENTS.md` or `CLAUDE.md` already exists, use `--no-bridge` only after establishing how those repository-native instructions will point agents to the canonical workspace.
 
 Validate every remote and integration/production branch before registration. Never persist credentials, query tokens, fragments, malformed refs, or an unverified remote branch. Use Braingraph worktree commands only for managed repositories; attached repositories retain their existing branch/worktree practices.
 

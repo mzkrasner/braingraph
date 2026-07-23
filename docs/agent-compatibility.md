@@ -26,6 +26,18 @@ This provides semantic compatibility: a natural-language setup or maintenance re
 
 Grok Build also reads top-level `CLAUDE.md` for compatibility. Because the Braingraph adapter contains only the literal `@AGENTS.md` pointer, Grok receives no duplicated policy body from that second file.
 
+## Discovery Scope
+
+Compatibility begins only after a client reaches the canonical files. A workspace-root `AGENTS.md` does not govern a directory outside its discovery ancestry unless an explicit adapter points to it.
+
+- Verify discovery from the human's normal agent launch locations, not only from the coordination root.
+- Treat every attached checkout and sibling Git worktree as a separate discovery location.
+- A generated attachment bridge covers only the exact checkout where Braingraph created it.
+- Prefer tracked repository-native pointers or an appropriately scoped parent coordinator when they can cover multiple worktrees without duplicating policy.
+- Do not rely on a personal global instruction as the only route to workspace knowledge.
+
+The setup skill requires a representative discovery matrix and fresh-agent checks for this reason. `braingraph doctor` verifies known instruction artifacts but cannot certify locations that are not represented in workspace state.
+
 ## Adapter Rules
 
 1. Put shared policy in the nearest canonical `AGENTS.md`.

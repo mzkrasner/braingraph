@@ -68,7 +68,7 @@ Ask an agent working in this repository:
 
 > Set up a Braingraph workspace for me.
 
-The agent must follow `.agents/skills/setup-braingraph/SKILL.md`: understand the intended scope, identify privacy and external-system boundaries, propose a setup, obtain approval, run a dry run, and only then create the workspace.
+The agent must follow `.agents/skills/setup-braingraph/SKILL.md`: understand the intended scope, identify privacy and external-system boundaries, map the directories where agents actually work, propose a setup and discovery matrix, obtain approval, run a dry run, and only then create the workspace. The setup location is not inferred from the Braingraph clone or current shell directory.
 
 Setup is also a product-learning surface. Agents should identify repeatable friction or assumptions that fail to generalize, distinguish those gaps from local configuration problems, and prepare a structured issue for [Braingraph Issues](https://github.com/mzkrasner/braingraph/issues). They must search for duplicates, remove machine-specific or sensitive context, show the draft to the user, and obtain explicit approval before filing it.
 
@@ -130,10 +130,12 @@ The software profile adds repository governance hubs and two explicit integratio
 
 - `repo add` creates a Braingraph-managed bare anchor, stable integration worktree, and isolated feature-worktree hub.
 - `repo attach` registers an existing checkout without rewriting its Git layout. Portable identity stays in `braingraph.json`; the absolute checkout path stays in ignored, permission-restricted `braingraph.local.json`.
-- An attachment can create ignored local `AGENTS.md` and `CLAUDE.md` discovery bridges. Use `--no-bridge` when repository-native root instructions already exist, then connect those instructions to the canonical workspace deliberately.
+- An attachment can create ignored local `AGENTS.md` and `CLAUDE.md` discovery bridges. A bridge applies only to that exact checkout, not sibling worktrees or other clones. Use `--no-bridge` when repository-native root instructions already exist, then connect those instructions to the canonical workspace deliberately.
 - `repo remove` deregisters either mode only after exact confirmation. It preserves hubs, checkouts, bridges, worktrees, and branches so recovery remains possible.
 
 Every remote and branch is validated before registration. Managed Git internals and child worktrees are ignored by the outer workspace repository while hub governance files remain trackable.
+
+Before setup is considered complete, validate agent discovery from the human's normal project root and representative checkouts and worktrees. The coordination root, Obsidian knowledge root, and Git checkout roots are distinct concepts even when a simple installation places them under one directory.
 
 Worktree cleanup is inspection-first and never automatic. Removal requires a clean worktree, an exact confirmation token, an allowed reason, and `--execute`. It does not delete branches or use force removal.
 

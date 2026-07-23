@@ -39,6 +39,14 @@ braingraph repo attach app \
 
 By default, attachment creates ignored checkout-root `AGENTS.md` and `CLAUDE.md` discovery bridges and records them in Git's local exclude file. The bridge points to the canonical workspace and repository hub; it does not duplicate policy. If either filename already contains repository-native instructions, attachment refuses to overwrite it. Review those instructions and use `--no-bridge` only when their existing discovery path is intentional.
 
+An attachment bridge configures only the exact checkout passed to `repo attach`. Git treats sibling worktrees as separate working directories, so an agent launched there will not see an ignored file created in the attached checkout. Before setup is complete, enumerate representative worktrees with `git worktree list --porcelain` and establish discovery through one of these patterns:
+
+- tracked repository-native instructions that intentionally point every checkout to Braingraph;
+- an applicable common-parent coordinator whose scope and client inheritance have been verified; or
+- a minimal machine-local adapter for each working tree that needs one.
+
+Do not infer repository identity or coverage from directory names. Use the Git common directory and remote identity to distinguish linked worktrees, separate clones, and unrelated folders. Keep absolute paths and local adapter choices out of the portable manifest.
+
 Managed worktree commands reject attached repositories because Braingraph does not own their layout.
 
 Worktree removal distinguishes inspection from execution. Inspection and dry-run remain available when process ownership cannot be determined, but `--execute` fails closed unless Braingraph can positively verify that no process has a working directory inside the target. The current implementation uses `lsof` on macOS and Linux. Windows does not expose an equivalent built-in inspection contract, so destructive worktree removal is intentionally unavailable there; inspect the worktree and perform any separately authorized Git cleanup with an appropriate Windows-native process tool.
@@ -49,4 +57,4 @@ Repository URLs may use explicit HTTPS, HTTP, SSH, Git, file, SCP-style, or loca
 
 `repo remove` requires an exact repository confirmation and exactly one of `--dry-run` or `--execute`. It removes shared registration and machine-local attachment mapping but deliberately preserves hubs, checkouts, bridges, worktrees, and branches. Review and remove those retained artifacts separately only when the human explicitly requests it.
 
-Run `braingraph doctor` after registration, attachment, moving a checkout, or changing local instructions. Doctor validates hub types and containment, managed anchors/worktrees, attached Git roots and origins, local mappings, and expected bridge files without mutating state.
+Run `braingraph doctor` after registration, attachment, moving a checkout, or changing local instructions. Doctor validates hub types and containment, managed anchors/worktrees, attached Git roots and origins, local mappings, and expected bridge files without mutating state. It validates registered artifacts, not discovery from sibling worktrees or other unregistered launch locations; verify those paths separately during setup.

@@ -77,9 +77,21 @@ test("an existing checkout can be attached without changing its Git layout", asy
     fs.readFileSync(path.join(checkout, "CLAUDE.md"), "utf8"),
     "@AGENTS.md\n",
   );
+  const checkoutBridge = fs.readFileSync(
+    path.join(checkout, "AGENTS.md"),
+    "utf8",
+  );
+  assert.match(checkoutBridge, /Braingraph Local Workspace Bridge/);
   assert.match(
-    fs.readFileSync(path.join(checkout, "AGENTS.md"), "utf8"),
-    /Braingraph Local Workspace Bridge/,
+    checkoutBridge,
+    /This bridge applies only to this checkout\. It does not configure sibling Git worktrees or other clones\./,
+  );
+  assert.match(
+    fs.readFileSync(
+      path.join(workspace, "repositories", "app", "AGENTS.md"),
+      "utf8",
+    ),
+    /Sibling worktrees and other clones require their own verified discovery route/,
   );
   assert.equal(runGit(["status", "--short"], checkout), "");
   assert.equal(
