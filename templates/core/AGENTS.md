@@ -19,6 +19,15 @@ This directory is the coordination root for the {{WORKSPACE_NAME}} Braingraph wo
 - If the active client does not natively list `.agents/skills`, enumerate their `SKILL.md` files, inspect the frontmatter, and read the complete matching skill before acting.
 - Client-specific files may adapt discovery only. Never place independent workspace policy in an adapter.
 
+## Workspace Discovery
+
+- These instructions govern only working locations that can discover this coordination root through directory ancestry or an explicit adapter.
+- Do not claim that a repository, clone, or worktree is integrated merely because it appears in `braingraph.json` or another checkout has a bridge.
+- A local bridge for one attached checkout does not configure sibling Git worktrees or separate clones.
+- When a working location is added, moved, or used for the first time, verify that a fresh agent can find this `AGENTS.md`, `{{KNOWLEDGE_DIR}}/Start Here.md`, the relevant repository hub, and `.agents/skills` without relying on prior chat context.
+- Prefer an applicable parent coordinator or tracked repository-native pointer for repeated locations. Keep machine-local adapters minimal and never copy canonical policy into them.
+- Surface a discovery gap before substantive work and propose the smallest scoped correction; do not move directories or broaden parent instructions without explicit approval.
+
 ## Sources Of Truth
 
 `braingraph.json` declares baseline workspace sensitivity, the local knowledge-maintenance policy, and external systems with their ownership, access, freshness, capture, and sensitivity rules. Do not infer a system's role from familiarity with the vendor.

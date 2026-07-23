@@ -92,6 +92,7 @@ attach options:
   --production-branch <branch>
   --path <relative-path>         Governance hub path (default: repositories/<id>)
   --no-bridge                    Do not create ignored local AGENTS.md/CLAUDE.md bridges
+                                 A bridge covers only this checkout, not sibling worktrees
 
 shared options:
   --workspace <directory>
@@ -826,6 +827,8 @@ This ignored, machine-local file is a discovery adapter, not canonical policy.
 1. Read \`${escapeMarkdownCodePath(path.join(workspaceRoot, "AGENTS.md"))}\`.
 2. Read \`${escapeMarkdownCodePath(path.join(hub, "AGENTS.md"))}\`.
 3. Read this checkout's repository-native instructions after those workspace guides.
+
+This bridge applies only to this checkout. It does not configure sibling Git worktrees or other clones.
 
 Do not copy durable policy into this file. Update the canonical Braingraph workspace instead.
 `;

@@ -55,9 +55,15 @@ test("init creates an Obsidian and QMD-ready knowledge workspace", async () => {
   assert.ok(
     fs.existsSync(path.join(workspace, "Knowledge", "_templates", "Source.md")),
   );
+  const rootInstructions = fs.readFileSync(
+    path.join(workspace, "AGENTS.md"),
+    "utf8",
+  );
+  assert.match(rootInstructions, /QMD Retrieval/);
+  assert.match(rootInstructions, /## Workspace Discovery/);
   assert.match(
-    fs.readFileSync(path.join(workspace, "AGENTS.md"), "utf8"),
-    /QMD Retrieval/,
+    rootInstructions,
+    /A local bridge for one attached checkout does not configure sibling Git worktrees/,
   );
 });
 

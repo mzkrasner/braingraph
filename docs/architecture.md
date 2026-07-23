@@ -28,6 +28,20 @@ External systems and software repositories are capabilities around the core. The
 
 Profiles add behavior for a class of workspace. The first optional profile is `software`, which adds repository hubs and guarded worktree management.
 
+## Workspace Topology
+
+The coordination root, knowledge root, and operational roots are separate architectural roles:
+
+- The coordination root contains `braingraph.json`, root governance, capability hubs, and the knowledge directory.
+- The knowledge root is the Obsidian-compatible Markdown vault.
+- Operational roots are the directory trees where the human actually launches agents or performs work.
+
+A workspace is usable only when agents launched from representative operational locations can discover its canonical instructions. An ancestor relationship can provide that path when client instruction inheritance and sensitivity scope are appropriate. Otherwise, use explicit adapters that point to canonical files without copying policy.
+
+Repository registration does not establish universal discovery. A local bridge for an attached checkout covers only that checkout. Sibling Git worktrees, separate clones, and working directories outside the coordination root need their own proven route through parent coordination, tracked repository instructions, or a local adapter.
+
+Operational paths and adapters are machine-local facts. Keep absolute paths out of portable shared configuration, validate them during setup, and reassess them when repositories move or the human's working pattern changes.
+
 ## Canonical State
 
 - `braingraph.json` owns workspace configuration and registered capabilities.
@@ -42,6 +56,7 @@ Profiles add behavior for a class of workspace. The first optional profile is `s
 - Repository hubs own durable Braingraph governance. Managed anchors/worktrees and attached checkout paths remain ignored local state.
 - Temporary implementation artifacts stay outside the durable knowledge graph.
 - `AGENTS.md` and `.agents/skills` own agent behavior; client-specific discovery files are non-canonical adapters.
+- A successful setup report proves representative discovery paths at that point in time; `doctor` validates registered artifacts but cannot prove unmodeled launch locations.
 
 ## Evolution Rules
 
