@@ -70,6 +70,11 @@ Ask an agent working in this repository:
 
 The agent must follow `.agents/skills/setup-braingraph/SKILL.md`: understand the intended scope, identify privacy and external-system boundaries, map the directories where agents actually work, propose a setup and discovery matrix, obtain approval, run a dry run, and only then create the workspace. The setup location is not inferred from the Braingraph clone or current shell directory.
 
+For an existing workspace, setup remains agent-led rather than migration-engine-led. The agent
+semantically maps existing knowledge, distinguishes canonical, reversible, disposable, and unrelated
+state, and uses shipped Braingraph commands for repeatable mutations. See
+`.agents/skills/setup-braingraph/references/existing-workspace-adoption.md`.
+
 Setup is also a product-learning surface. Agents should identify repeatable friction or assumptions that fail to generalize, distinguish those gaps from local configuration problems, and prepare a structured issue for [Braingraph Issues](https://github.com/mzkrasner/braingraph/issues). They must search for duplicates, remove machine-specific or sensitive context, show the draft to the user, and obtain explicit approval before filing it.
 
 ## Agent Compatibility

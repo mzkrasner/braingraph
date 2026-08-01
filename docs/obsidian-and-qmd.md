@@ -29,6 +29,12 @@ Governing files, navigation, source registries, raw material, templates, retriev
 
 Braingraph runs every QMD operation from the workspace root. QMD stores that workspace's configuration and SQLite index under ignored `.qmd/`, outside the Markdown vault; shared downloaded model caches may remain in QMD's user cache. Configuration and refresh do not enumerate, update, or delete unrelated workspace collections. `braingraph doctor` checks the local configuration, collection/context contract, `qmd doctor`, and `qmd status`. If the index is missing, stale, unsupported, or unavailable, agents fall back to direct Markdown retrieval rather than treating the knowledge as lost.
 
+When adopting an existing workspace, preserve the canonical Markdown and declared collection boundary,
+then rebuild the target workspace's QMD index. Do not migrate, hash, or inspect SQLite internals merely
+to retain derived state, and do not alter unrelated collections or shared caches. Validate the
+collection path, inclusion mask, exclusions, purpose context, and a small representative retrieval
+query after configuration.
+
 After a consequential miss, alias failure, or taxonomy change, add a small fictional or sanitized retrieval fixture and use `qmd bench` to verify that the intended canonical page is discoverable. Do not create benchmark churn without evidence of a retrieval problem.
 
 ## Canonical Boundary
