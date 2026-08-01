@@ -42,6 +42,19 @@ Repository registration does not establish universal discovery. A local bridge f
 
 Operational paths and adapters are machine-local facts. Keep absolute paths out of portable shared configuration, validate them during setup, and reassess them when repositories move or the human's working pattern changes.
 
+## Agent-Led Adoption
+
+Adopting an existing workspace is intentionally a semantic, agent-led process rather than a
+deterministic migration subsystem. The agent identifies the workspace's actual sources of truth,
+proposes a minimal mapping, and asks the human to resolve ownership or taxonomy ambiguity. Shipped
+Braingraph commands own repeatable filesystem and Git safety; setup prose must not be expanded into
+one-off planners, state machines, or machine-wide evidence ledgers.
+
+Canonical durable state is preserved and mapped, reversible local state is backed up only where it
+will change, disposable interface/index state is rebuilt, and unrelated state remains untouched. The
+detailed adoption contract lives in
+`../.agents/skills/setup-braingraph/references/existing-workspace-adoption.md`.
+
 ## Canonical State
 
 - `braingraph.json` owns workspace configuration and registered capabilities.

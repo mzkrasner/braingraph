@@ -45,3 +45,34 @@ test("setup requires an operational-root discovery assessment", () => {
     /must not depend on prior conversation context, remembered absolute paths, or an unrelated global instruction/,
   );
 });
+
+test("existing workspace adoption stays agent-led and proportional", () => {
+  const skill = fs.readFileSync(path.join(setupSkillRoot, "SKILL.md"), "utf8");
+  const adoption = fs.readFileSync(
+    path.join(setupSkillRoot, "references", "existing-workspace-adoption.md"),
+    "utf8",
+  );
+  const repositoryGuide = fs.readFileSync(
+    path.join(repositoryRoot, "AGENTS.md"),
+    "utf8",
+  );
+
+  assert.match(skill, /references\/existing-workspace-adoption\.md/);
+  assert.match(skill, /two approval boundaries/i);
+  assert.match(skill, /custom migration program/i);
+  assert.match(skill, /freeze of\s+unrelated repositories/i);
+  assert.match(skill, /ungoverned scratch directory/i);
+
+  assert.match(adoption, /## State Classes/);
+  assert.match(adoption, /Canonical durable state/);
+  assert.match(adoption, /Reversible local state/);
+  assert.match(adoption, /Disposable derived state/);
+  assert.match(adoption, /Unrelated state/);
+  assert.match(adoption, /Rebuild disposable Obsidian\/QMD state/i);
+  assert.match(adoption, /Two human approval boundaries are normally enough/i);
+  assert.match(adoption, /Do not freeze unrelated Git repositories/i);
+
+  assert.match(repositoryGuide, /reusable Braingraph commands and tests/i);
+  assert.match(repositoryGuide, /do not replace judgment with/i);
+  assert.match(repositoryGuide, /one-off migration program/i);
+});

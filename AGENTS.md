@@ -27,7 +27,9 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
 - Support Node.js 22 and later without runtime dependencies.
 - Use pnpm for dependency and script execution; do not create npm or Yarn lockfiles.
 - Keep TypeScript strict, lint clean, formatted with Prettier, and covered by Vitest.
-- Prefer deterministic filesystem and Git behavior over prose-only instructions when safety matters.
+- Put deterministic safety behavior in reusable Braingraph commands and tests when the product performs
+  filesystem or Git mutations. Keep semantic workspace adoption agent-led; do not replace judgment with
+  a bespoke migration framework.
 - Every mutating CLI command must support `--dry-run`.
 - Initialization must be idempotent and must not overwrite user-authored files.
 - Destructive operations must default to inspection and require exact confirmation.
@@ -42,6 +44,11 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
 ## Setup Requests
 
 When a user asks to create, adopt, or configure a Braingraph workspace, load `.agents/skills/setup-braingraph/SKILL.md` and follow its proposal-first workflow.
+
+Keep the setup task under this repository's instruction scope until the target workspace's canonical
+instructions have been installed and verified. For an existing workspace, use the skill's proportional
+adoption workflow. Do not invent a one-off migration program, state machine, exhaustive hash ledger, or
+freeze unrelated Git state unless a demonstrated risk requires it and the human separately approves it.
 
 Treat repeatable setup friction as product evidence. After diagnosing local configuration, setup agents should surface limitations, brittle assumptions, confusing behavior, or missing generalization and use the skill's `references/product-feedback.md` workflow to prepare a sanitized, duplicate-checked GitHub issue. Creating the issue is an external write and requires explicit human approval.
 

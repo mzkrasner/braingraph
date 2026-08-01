@@ -10,7 +10,8 @@ Build the smallest workspace that satisfies the human's current needs while pres
 ## Workflow
 
 1. Read the repository `README.md`, `docs/architecture.md`, and `docs/external-systems.md`.
-2. Determine whether the user is creating a new workspace or adopting an existing directory.
+2. Determine whether the user is creating a new workspace or adopting an existing directory. For an
+   existing workspace, read `references/existing-workspace-adoption.md` before proposing changes.
 3. Establish only the missing decisions:
    - workspace name and location;
    - a one-sentence durable purpose and intended scope: project, organization, professional domain, personal domain, or mixed;
@@ -23,7 +24,7 @@ Build the smallest workspace that satisfies the human's current needs while pres
 4. Before choosing the workspace location, read `references/workspace-topology.md`. Inventory the agreed operational roots, representative repository checkouts and worktrees, existing instruction files, and the discovery path each in-scope agent client will use. Do not infer the operational root from the setup repository, the current shell directory, or one convenient checkout.
 5. For each external system, classify lifecycle status, ownership, role, stable record identity, freshness, read/write access, delegated write scope when applicable, capture mode, sensitivity, and unavailable-or-conflicting-evidence behavior. Read `references/system-assessment.md` when integrations are involved.
 6. Agree on the ongoing maintenance boundary: `proposal-first` by default, or `delegated` with an explicit narrow scope for routine local Markdown updates. Persist that choice through `braingraph init`; external writes and taxonomy changes remain separately approval-gated.
-7. Present a concise setup proposal. Include the proposed coordination root, knowledge root, repository modes, and a discovery matrix showing how agents launched from each representative working location will find the canonical workspace and relevant repository hub. Identify unresolved discovery gaps explicitly. Do not install tools, create files, clone repositories, or mutate external systems before the user approves it.
+7. Present a concise setup proposal. Include the proposed coordination root, knowledge root, repository modes, and a discovery matrix showing how agents launched from each representative working location will find the canonical workspace and relevant repository hub. Identify unresolved discovery gaps explicitly. Keep the control task under this repository's instruction scope until the target workspace's canonical instructions have been installed and verified. Do not install tools, create files, clone repositories, or mutate external systems before the user approves it.
 8. Run every proposed mutating Braingraph command with `--dry-run` first.
 9. Show the consequential dry-run actions and resolve conflicts without overwriting existing files.
 10. Apply the approved commands: use `--execute` where the command requires it, and otherwise repeat without `--dry-run`.
@@ -50,16 +51,25 @@ Build the smallest workspace that satisfies the human's current needs while pres
 - Do not create speculative taxonomy. Start minimally and let evidence justify new boundaries.
 - Do not treat setup completion as the end of knowledge maintenance. Fresh agents should proactively surface durable update candidates as work continues.
 - Do not duplicate canonical instructions or skill bodies merely to populate a client-specific rules directory or slash-command menu. Read `docs/agent-compatibility.md` before adding an adapter.
+- Do not compensate for a missing Braingraph capability with a custom migration program, workflow state
+  machine, exhaustive evidence or hash ledger, repeated activation/restore protocol, or freeze of
+  unrelated repositories. Escalate a demonstrated product gap instead. A narrowly scoped helper is
+  appropriate only when the user approves it for concrete repetitive work.
+- Do not move the setup task into an ungoverned scratch directory before the target workspace can
+  independently surface its canonical instructions and setup context.
 
 ## Existing Workspaces
 
-`braingraph init` is additive and refuses to overwrite files. When adopting an existing directory:
+`braingraph init` is additive and refuses to overwrite files. Follow
+`references/existing-workspace-adoption.md` when adopting an existing directory. Let the agent
+interpret the existing knowledge and propose the smallest useful mapping; use Braingraph's shipped
+commands for repeatable mutations and safety checks.
 
-1. inventory the current structure;
-2. identify existing canonical notes and instructions;
-3. propose mappings into Braingraph roles;
-4. initialize only after the mapping is approved; and
-5. leave migration as a separate, reviewable step.
+By default, use two approval boundaries: approve the adoption proposal, then approve execution after
+reviewing the dry run. Preserve and map canonical knowledge, capture the preimage only for local files
+that will actually change, rebuild disposable Obsidian/QMD state, and leave unrelated repositories and
+external systems untouched. Additional gates or custom tooling require a specific observed risk, not
+theoretical completeness.
 
 Use `braingraph system update` for changed access, ownership, identity, or lifecycle rules. Mark retired systems `inactive` so provenance remains intelligible; do not silently delete their history.
 
