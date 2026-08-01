@@ -1,6 +1,6 @@
 import eslint from "@eslint/js";
+import eslintCommentsPlugin from "@eslint-community/eslint-plugin-eslint-comments";
 import prettierConfig from "eslint-config-prettier";
-import eslintCommentsPlugin from "eslint-plugin-eslint-comments";
 import importPlugin from "eslint-plugin-import-x";
 import jsdocPlugin from "eslint-plugin-jsdoc";
 import noSecretsPlugin from "eslint-plugin-no-secrets";
@@ -157,7 +157,7 @@ export default tseslint.config(
       "unicorn/no-null": "off",
       "unicorn/prefer-module": "error",
       "unicorn/prefer-node-protocol": "error",
-      "unicorn/prevent-abbreviations": [
+      "unicorn/name-replacements": [
         "error",
         {
           replacements: {
@@ -166,6 +166,8 @@ export default tseslint.config(
             params: false,
             props: false,
             ref: false,
+            repository: false,
+            util: false,
           },
         },
       ],
