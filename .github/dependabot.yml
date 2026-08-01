@@ -8,6 +8,31 @@ updates:
     groups:
       development-toolchain:
         dependency-type: development
+        # Major tooling releases can change lint and type semantics and need isolated review.
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # ESLint 10 requires coordinated plugin and configuration migrations.
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@eslint/js"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: eslint-plugin-unicorn
+        update-types:
+          - version-update:semver-major
+
+      # TypeScript 7 is unsupported by the current typescript-eslint release.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
+
+      # Node type majors require explicit review against the supported runtime matrix.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
