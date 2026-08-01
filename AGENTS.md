@@ -28,7 +28,9 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
   `@types/node` release from the oldest supported Node major so type checking cannot admit APIs
   unavailable on that runtime. Raise the minimum runtime and CI floor before advancing the type
   definitions to a newer major.
-- Use pnpm for dependency and script execution; do not create npm or Yarn lockfiles.
+- Use pnpm for dependency and script execution; do not create npm or Yarn lockfiles. Treat
+  `pnpm-lock.yaml` as pnpm-generated output: regenerate it with the repository-pinned pnpm version
+  and never run Prettier over it.
 - Keep TypeScript strict, lint clean, formatted with Prettier, and covered by Vitest.
 - Put deterministic safety behavior in reusable Braingraph commands and tests when the product performs
   filesystem or Git mutations. Keep semantic workspace adoption agent-led; do not replace judgment with
