@@ -24,7 +24,10 @@ Braingraph is an agent-first, Markdown-native second-brain scaffold. Obsidian is
 
 ## Engineering Rules
 
-- Support Node.js 22 and later without runtime dependencies.
+- Support Node.js 22 and later without runtime dependencies. Compile against the latest
+  `@types/node` release from the oldest supported Node major so type checking cannot admit APIs
+  unavailable on that runtime. Raise the minimum runtime and CI floor before advancing the type
+  definitions to a newer major.
 - Use pnpm for dependency and script execution; do not create npm or Yarn lockfiles.
 - Keep TypeScript strict, lint clean, formatted with Prettier, and covered by Vitest.
 - Put deterministic safety behavior in reusable Braingraph commands and tests when the product performs
