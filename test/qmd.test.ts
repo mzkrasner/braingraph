@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { test } from "vitest";
+import { test, vi } from "vitest";
 
 import { runBounded } from "../src/bounded-process.js";
 import { withQmdLock } from "../src/qmd-runtime.js";
@@ -593,14 +593,29 @@ test("QMD cleanup does not remove a replacement lock owned by another operation"
   const lock = path.join(workspace, ".qmd", "operation.lock");
   const replacement = path.join(workspace, ".qmd", "replacement-lock");
   fs.writeFileSync(replacement, "another owner\n");
-  await assert.rejects(
-    withQmdLock(workspace, "refresh", () => {
-      fs.renameSync(replacement, lock);
-      return Promise.resolve();
-    }),
-    /refusing to remove another owner's lock/,
-  );
+  const closeSync = fs.closeSync;
+  const close = vi.spyOn(fs, "closeSync");
+  try {
+    await assert.rejects(
+      withQmdLock(workspace, "refresh", () => {
+        // Windows cannot replace an open file. Inject the race after the real
+        // close, before cleanup checks ownership, so every platform tests it.
+        close.mockImplementationOnce((descriptor) => {
+          closeSync(descriptor);
+          fs.renameSync(replacement, lock);
+        });
+        return Promise.resolve();
+      }),
+      /refusing to remove another owner's lock/,
+    );
+  } finally {
+    close.mockRestore();
+  }
   assert.equal(fs.readFileSync(lock, "utf8"), "another owner\n");
+  assert.equal(
+    fs.existsSync(path.join(workspace, ".qmd", "last-operation.json")),
+    false,
+  );
 });
 
 test("bounded QMD processes kill launcher descendants and cap captured output", async () => {
