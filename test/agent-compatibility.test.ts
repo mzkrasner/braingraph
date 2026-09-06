@@ -7,6 +7,7 @@ import { test } from "vitest";
 import {
   createRemoteWithBranch,
   runCli,
+  repositoryRoot,
   temporaryDirectory,
 } from "./helpers.js";
 
@@ -38,6 +39,81 @@ test("init creates canonical instructions with import-only Claude adapters", asy
   assert.match(
     instructions,
     /Codex, Cursor, and Grok Build discover the canonical instructions and skills directly/,
+  );
+});
+
+test("fictional behavior cases resolve distinct source files without entering canonical knowledge", async () => {
+  const workspace = path.join(temporaryDirectory(), "workspace");
+  assert.equal(
+    (await runCli(["init", workspace, "--name", "Fixture Test"])).status,
+    0,
+  );
+  const pack = path.join(workspace, "Knowledge", "evals", "behavior");
+  const fixtures = JSON.parse(
+    fs.readFileSync(path.join(pack, "fixtures.json"), "utf8"),
+  ) as {
+    version: number;
+    brains: {
+      directory: string;
+      name: string;
+      description: string;
+      notes: string;
+    }[];
+  };
+  const cases = JSON.parse(
+    fs.readFileSync(path.join(pack, "cases.json"), "utf8"),
+  ) as {
+    cases: {
+      id: string;
+      skill: string;
+      allowedBrains: string[];
+      request: string;
+    }[];
+  };
+  assert.equal(fixtures.version, 1);
+  assert.equal(
+    new Set(fixtures.brains.map((brain) => brain.directory)).size,
+    2,
+  );
+  assert.equal(
+    new Set(cases.cases.map((item) => item.id)).size,
+    cases.cases.length,
+  );
+  for (const brain of fixtures.brains) {
+    const notes = path.resolve(pack, brain.notes);
+    assert.ok(notes.startsWith(`${pack}${path.sep}`));
+    assert.ok(fs.existsSync(path.join(notes, "wiki", "Membership.md")));
+    assert.ok(fs.existsSync(path.join(notes, "wiki", "Intake.md")));
+  }
+  for (const item of cases.cases) {
+    assert.ok(item.request.length > 0);
+    assert.ok(
+      fs.existsSync(
+        path.join(workspace, ".agents", "skills", item.skill, "SKILL.md"),
+      ),
+    );
+    assert.ok(
+      item.allowedBrains.every((allowed) =>
+        fixtures.brains.some((brain) => brain.directory === allowed),
+      ),
+    );
+  }
+  assert.ok(fs.existsSync(path.join(pack, "rubric.md")));
+  assert.deepEqual(
+    fs.readdirSync(path.join(workspace, "Knowledge", "wiki")),
+    [],
+  );
+  assert.ok(
+    fs.existsSync(
+      path.join(
+        repositoryRoot,
+        "templates",
+        "core",
+        "skills",
+        "braingraph-query",
+        "SKILL.md",
+      ),
+    ),
   );
 });
 

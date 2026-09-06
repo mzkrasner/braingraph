@@ -16,7 +16,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "schemaVersion": { "const": 1 },
-    "templateVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "templateVersion": { "type": "integer", "minimum": 1, "maximum": 2 },
     "workspace": {
       "type": "object",
       "required": [
@@ -125,6 +125,21 @@
     }
   },
   "$defs": {
+    "systemIdentity": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "account": { "$ref": "#/$defs/identityString" },
+        "tenant": { "$ref": "#/$defs/identityString" },
+        "principal": { "$ref": "#/$defs/identityString" }
+      }
+    },
+    "identityString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![\\s])(?!.*[\\s]$)[^\\u0000-\\u001f\\u007f]+$"
+    },
     "externalSystem": {
       "type": "object",
       "required": [
@@ -173,6 +188,7 @@
           "minItems": 1,
           "uniqueItems": true
         },
+        "identity": { "$ref": "#/$defs/systemIdentity" },
         "access": {
           "type": "object",
           "required": ["read", "write"],

@@ -15,6 +15,8 @@ Braingraph does not bundle an AI model or lock knowledge inside a proprietary da
 - Vendor-neutral contracts for issue trackers, file stores, messaging, CRMs, and other external systems.
 - An optional software profile for repository coordination and guarded Git worktree management.
 - A single-source agent contract for Codex, Claude Code, Cursor, and Grok Build.
+- Independent brains on one machine, each with its own index, connector bindings, and maintenance state.
+- Portable ingest/query/maintain skills, evidence-aware note templates, and a decision lifecycle.
 
 ## Use Cases
 
@@ -62,6 +64,30 @@ node dist/bin.js init ~/Projects/example \
 
 Every mutating command supports `--dry-run`.
 
+## Multiple Brains on One Machine
+
+Create one coordination root per brain. There is no machine-wide active brain, shared
+knowledge index, or default connector account. Shared application binaries and QMD model
+caches are fine; workspace indexes, source permissions, and local bindings are not shared.
+Even two brains with the same collection name remain independent because indexes are local.
+
+Use the explicit target from any working directory:
+
+```bash
+braingraph qmd search /path/to/research-brain --text "accepted decisions"
+braingraph qmd refresh /path/to/research-brain --embed
+braingraph knowledge lint /path/to/research-brain
+braingraph system status --workspace /path/to/research-brain
+```
+
+Agents must confirm the intended root and account before using a connector. Cross-brain
+search, copying, or synthesis requires an explicit scope and compatible disclosure rules;
+a failed search never authorizes falling back to another brain. See the generated
+fictional evaluation pack for repeatable two-brain tests.
+
+Existing workspaces follow the [template 2 upgrade guide](docs/upgrading.md).
+Updating this product repository does not migrate them automatically.
+
 ## Agent-Led Setup
 
 Ask an agent working in this repository:
@@ -96,10 +122,14 @@ See [`docs/agent-compatibility.md`](docs/agent-compatibility.md) for the complet
 ```text
 braingraph init [directory] [options]
 braingraph doctor [directory] [--json]
+braingraph knowledge lint [directory] [--json]
 braingraph tools install [directory] [--dry-run | --execute]
 braingraph obsidian open [directory] [--dry-run | --execute]
 braingraph qmd configure|refresh [directory] [options]
+braingraph qmd search|query|get [directory] --text <query-or-uri> [options]
 braingraph system add|update <id> [options]
+braingraph system bind|check <id> --workspace <directory> [options]
+braingraph system status [id] --workspace <directory> [--json]
 braingraph repo add|attach|remove <id> [options]
 braingraph worktree new <repository> <name> [options]
 braingraph worktree inspect <repository> <name> [--json]
@@ -116,6 +146,7 @@ External systems are optional entries in `braingraph.json`. Each entry records:
 - what the system owns;
 - its role in the workspace;
 - the stable record identifiers agents must preserve;
+- expected non-secret account, tenant, or principal identity when relevant;
 - read and write boundaries;
 - freshness expectations;
 - whether knowledge should be linked, summarized, synchronized, or excluded;
@@ -124,6 +155,11 @@ External systems are optional entries in `braingraph.json`. Each entry records:
 - connector-specific notes when relevant.
 
 This model supports issue trackers, file stores, messaging systems, CRMs, email, calendars, source control, databases, or future tools without making any one vendor foundational.
+
+Machine-local connector IDs live in the selected brain's ignored `braingraph.local.json`.
+`system check` compares a freshly observed identity against the expected identity and local
+binding; it does not authenticate to a provider or grant permission to act. Missing or
+mismatched identity must stop connector use until resolved.
 
 Changed integrations are updated in place. Prospective integrations are marked planned, and retired integrations are marked inactive instead of being erased. This preserves provenance while allowing tools and ownership boundaries to evolve.
 
@@ -158,6 +194,12 @@ Braingraph is designed to evolve during normal work, not only during dedicated n
 - External writes, destructive actions, sensitive disclosures, and consequential taxonomy changes remain approval-gated.
 
 Raw intake is ignored by Git by default. Durable synthesis, provenance, and sanitized dated reports remain separate from raw source artifacts and live execution state.
+
+The generated ingest/query/maintain skills keep detailed procedures out of standing
+instructions. Source notes distinguish observation, retrieval, and authoritative verification;
+decisions distinguish proposal, acceptance, and implementation. See
+[knowledge quality](docs/knowledge-quality.md) for the separate setup-health, note-lint,
+agent-behavior, and human-interface acceptance checks.
 
 ## Development
 

@@ -19,6 +19,13 @@ export type ExternalCapture =
   "link" | "summarize" | "synchronize" | "copy" | "exclude";
 export type Sensitivity = "public" | "private" | "confidential" | "regulated";
 
+/** Non-secret, provider-reported identity constraints, never credentials. */
+export interface ExternalSystemIdentity {
+  account?: string;
+  tenant?: string;
+  principal?: string;
+}
+
 export interface ExternalSystem {
   id: string;
   name: string;
@@ -27,6 +34,7 @@ export interface ExternalSystem {
   roles: ExternalSystemRole[];
   owns: string[];
   identifiers: string[];
+  identity?: ExternalSystemIdentity;
   access: {
     read: ExternalReadAccess;
     write: ExternalWriteAccess;
@@ -62,6 +70,7 @@ export type RepositoryConfig =
 
 export interface LocalWorkspaceState {
   schemaVersion: 1;
+  systemBindings?: Record<string, LocalSystemBinding>;
   attachments: Record<
     string,
     {
@@ -69,6 +78,13 @@ export interface LocalWorkspaceState {
       bridge: boolean;
     }
   >;
+}
+
+/** A workspace-local mapping, not proof of current authentication. */
+export interface LocalSystemBinding {
+  connector: string;
+  identity: ExternalSystemIdentity;
+  recordedAt: string;
 }
 
 export interface WorkspaceManifest {

@@ -73,7 +73,9 @@ export function rootReplacements(manifest: WorkspaceManifest): Replacements {
     WORKSPACE_SLUG: manifest.workspace.slug,
     KNOWLEDGE_DIR: manifest.knowledge.directory,
     QMD_SECTION: qmdRootSection(manifest),
-    SOFTWARE_SECTION: softwareRootSection(),
+    SOFTWARE_SECTION: manifest.workspace.profiles.includes("software")
+      ? softwareRootSection()
+      : "",
   };
 }
 
@@ -95,12 +97,12 @@ export function knowledgeReplacements(
 
 function qmdRootSection(manifest: WorkspaceManifest): string {
   const collection = manifest.knowledge.qmd.collection;
-  return `## QMD Retrieval\n\nQMD is the configured agent discovery layer for this workspace. The collection is \`${collection}\`, with the workspace purpose registered as collection context. Search results are leads: retrieve complete source sections and cite the Markdown files. The QMD configuration, index, and model cache are local, rebuildable state and must not be committed or treated as authority. Run \`braingraph qmd refresh\` after material knowledge changes when background refresh is not active.`;
+  return `## QMD Retrieval\n\nThis brain's collection is \`${collection}\`. Use \`braingraph qmd search <workspace> --text "terms"\`, \`braingraph qmd query <workspace> --text "intent"\`, and \`braingraph qmd get <workspace> --text "qmd://<collection>/<document>"\` with the exact resolved root. These wrappers refuse missing local configuration or conflicting index overrides rather than searching another brain. Retrieve sources, not snippets; indexes and caches are local rebuildable state, never authority. After authorized material knowledge changes, run \`braingraph qmd refresh <workspace>\` when background refresh is not active. If unavailable, use scoped Markdown search and report stale retrieval.`;
 }
 
 function qmdRetrievalSection(manifest: WorkspaceManifest): string {
   const collection = manifest.knowledge.qmd.collection;
-  return `### QMD\n\nUse \`qmd search <terms> -c ${collection}\` for exact identifiers and \`qmd query <intent> -c ${collection}\` or a structured query document for conceptual retrieval. Fetch material results by \`qmd://\` path or document ID with \`qmd get\` or \`qmd multi-get\`. Read governing files and source registries directly because they are intentionally excluded from semantic ranking. If QMD is unavailable or stale, use direct Markdown and exact filesystem search rather than treating the knowledge as inaccessible.`;
+  return `## QMD\n\nUse \`braingraph qmd search <workspace> --text "terms"\` for exact identifiers, \`braingraph qmd query <workspace> --text "intent"\` for conceptual retrieval, and \`braingraph qmd get <workspace> --text "qmd://${collection}/<document>"\` to read results. Pass the exact coordination root, not the vault or a sibling brain. The wrappers enforce local index selection. Read governing files and source registries directly because they are excluded from semantic ranking. If Braingraph or QMD is unavailable, use scoped Markdown and exact filesystem search; do not fall back to an unqualified global QMD invocation.`;
 }
 
 function qmdStartSection(manifest: WorkspaceManifest): string {

@@ -1,6 +1,8 @@
 # Start Here
 
-This is the {{WORKSPACE_NAME}} second brain. Its current purpose, scope, sensitivity, and maintenance boundary are declared in `../braingraph.json`. Obsidian is its configured human interface and QMD is its agent retrieval layer. Markdown files remain canonical and usable with any editor; agents follow the scoped `AGENTS.md` files, with import-only client adapters where required.
+This is the {{WORKSPACE_NAME}} second brain. Its current purpose, scope, sensitivity, and maintenance boundary are declared in `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json`. Obsidian is its configured human interface and QMD is its agent retrieval layer. Markdown files remain canonical and usable with any editor; agents follow the scoped `AGENTS.md` files, with import-only client adapters where required.
+
+Other brains may live on this machine. This one has its own root, vault, index, source bindings, and permissions. Naming another brain in a note does not authorize searching or changing it.
 
 ## The Loop
 
@@ -17,8 +19,8 @@ This is the {{WORKSPACE_NAME}} second brain. Its current purpose, scope, sensiti
 ## Ownership
 
 - This knowledge base owns durable synthesis.
-- `../braingraph.json` identifies external systems and what they own.
-- `../braingraph.json` also owns the workspace sensitivity and routine knowledge-maintenance boundary.
+- `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json` identifies external systems and what they own.
+- `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json` also owns the workspace sensitivity and routine knowledge-maintenance boundary.
 - Live status must be verified in its owning system.
 - Raw sources and reports are evidence, not automatically current truth.
 - Search indexes are disposable discovery aids.
@@ -34,3 +36,7 @@ This is the {{WORKSPACE_NAME}} second brain. Its current purpose, scope, sensiti
 - `Lint the knowledge graph. Report issues without reorganizing it.`
 
 {{QMD_START_SECTION}}
+
+## First-Use Check
+
+Open this vault in Obsidian, insert a page template, replace placeholder metadata, edit a property, create and rename a linked note, then read the saved Markdown and retrieve that exact note after a scoped refresh. Confirm the other brain did not change. Opening an Obsidian URI or passing configuration checks alone does not prove this editing round trip; see `evals/behavior/README.md` for a safe fictional exercise.

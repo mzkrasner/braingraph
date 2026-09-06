@@ -10,7 +10,16 @@ import {
   TEMPLATE_VERSION,
   validateManifest,
 } from "../manifest.js";
+import { obsidianConfigChecks } from "../obsidian-config.js";
 import { commandExists, run } from "../process.js";
+import {
+  assertQmdConfig,
+  assertQmdDestinations,
+  localQmdConfig,
+  qmdEnvironment,
+  QMD_PROBE_TIMEOUT_MS,
+  runLocalQmd,
+} from "../qmd-runtime.js";
 import { qmdMask } from "../templates.js";
 import type {
   CommandContext,
@@ -47,10 +56,10 @@ vault configuration, QMD installation and collection registration, and optional
 software repository hubs. It does not mutate anything.`;
 
 /** Inspects a workspace without mutating local or external state. */
-export function doctorCommand(
+export async function doctorCommand(
   tokens: readonly string[],
   context: CommandContext = {},
-): number {
+): Promise<number> {
   const { positionals, options } = parseArgs(tokens);
   rejectUnknownOptions(options, ["json", "help"]);
   const output = context.output ?? process.stdout;
@@ -80,8 +89,9 @@ export function doctorCommand(
     ),
     ...vaultChecks(workspace.root, vault),
     ...skillCatalogChecks(workspace.root),
+    ...templateContractChecks(workspace),
     obsidianCheck(),
-    ...qmdChecks(workspace, vault),
+    ...(await qmdChecks(workspace, vault)),
     ...softwareChecks(workspace),
   ];
 
@@ -110,6 +120,12 @@ function manifestCheck(workspace: LoadedWorkspace): DoctorCheck {
 }
 
 function vaultChecks(workspaceRoot: string, vault: string): DoctorCheck[] {
+  const containment = canonicalContainmentCheck(
+    "vault:containment",
+    workspaceRoot,
+    vault,
+  );
+  if (containment.status === "error") return [containment];
   const expected: readonly (readonly [string, "file" | "directory"])[] = [
     ["Start Here.md", "file"],
     ["index.md", "file"],
@@ -137,14 +153,39 @@ function vaultChecks(workspaceRoot: string, vault: string): DoctorCheck[] {
     [".obsidian/templates.json", "file"],
   ];
   const checks = [
-    canonicalContainmentCheck("vault:containment", workspaceRoot, vault),
+    containment,
     ...instructionScopeChecks("knowledge", vault),
     ...expected.map(([relative, type]) =>
       artifactCheck(`vault:${relative}`, path.join(vault, relative), type),
     ),
   ];
   checks.push(...placeholderChecks(workspaceRoot, vault));
+  checks.push(...obsidianConfigChecks(vault));
   return checks;
+}
+
+function templateContractChecks(workspace: LoadedWorkspace): DoctorCheck[] {
+  if (workspace.manifest.templateVersion < 2) return [];
+  const knowledge = workspace.manifest.knowledge.directory;
+  const files = [
+    `${knowledge}/_templates/Decision.md`,
+    `${knowledge}/_templates/README.md`,
+    `${knowledge}/evals/behavior/README.md`,
+    ...["ingest", "query", "maintain"].map(
+      (name) => `.agents/skills/braingraph-${name}/SKILL.md`,
+    ),
+  ];
+  return files.flatMap((relative) => {
+    const file = path.join(workspace.root, relative);
+    const containment = canonicalContainmentCheck(
+      `contract-2:${relative}:containment`,
+      workspace.root,
+      file,
+    );
+    return containment.status === "error"
+      ? [containment]
+      : [artifactCheck(`contract-2:${relative}`, file, "file")];
+  });
 }
 
 function placeholderChecks(
@@ -312,15 +353,36 @@ function obsidianCheck(): DoctorCheck {
   );
 }
 
-function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
+async function qmdChecks(
+  workspace: LoadedWorkspace,
+  vault: string,
+): Promise<DoctorCheck[]> {
+  try {
+    assertQmdDestinations(workspace.root);
+    assertQmdConfig(workspace.root);
+    qmdEnvironment(workspace.root);
+    return await safeQmdChecks(workspace, vault);
+  } catch (error: unknown) {
+    return [
+      check(
+        "qmd:safety",
+        "error",
+        error instanceof Error ? error.message : String(error),
+      ),
+    ];
+  }
+}
+
+async function safeQmdChecks(
+  workspace: LoadedWorkspace,
+  vault: string,
+): Promise<DoctorCheck[]> {
   const stateContainment = canonicalContainmentCheck(
     "qmd:local-state-containment",
     workspace.root,
     path.join(workspace.root, ".qmd"),
   );
-  const localConfig = ["index.yml", "index.yaml"]
-    .map((name) => path.join(workspace.root, ".qmd", name))
-    .find((candidate) => isFile(candidate));
+  const localConfig = localQmdConfig(workspace.root);
   const localChecks = [
     stateContainment,
     check(
@@ -348,7 +410,7 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
       ),
     ];
   }
-  const version = supportedQmdVersion(workspace.root);
+  const version = await supportedQmdVersion(workspace.root);
   const checks: DoctorCheck[] = [
     ...localChecks,
     check(
@@ -361,10 +423,14 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
   ];
   if (version === undefined || localConfig === undefined) return checks;
   const collection = workspace.manifest.knowledge.qmd.collection;
-  const result = run("qmd", ["collection", "show", collection], {
-    allowFailure: true,
-    cwd: workspace.root,
-  });
+  const result = await runLocalQmd(
+    workspace.root,
+    ["collection", "show", collection],
+    {
+      allowFailure: true,
+      timeoutMs: QMD_PROBE_TIMEOUT_MS,
+    },
+  );
   const collectionMatches =
     result.status === 0 &&
     qmdCollectionMatches(
@@ -379,9 +445,9 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
     "qmd",
     "SKILL.md",
   );
-  const contextResult = run("qmd", ["context", "list"], {
+  const contextResult = await runLocalQmd(workspace.root, ["context", "list"], {
     allowFailure: true,
-    cwd: workspace.root,
+    timeoutMs: QMD_PROBE_TIMEOUT_MS,
   });
   const contextMatches =
     contextResult.status === 0 &&
@@ -390,13 +456,13 @@ function qmdChecks(workspace: LoadedWorkspace, vault: string): DoctorCheck[] {
       collection,
       workspace.manifest.workspace.description,
     );
-  const health = run("qmd", ["doctor"], {
+  const health = await runLocalQmd(workspace.root, ["doctor"], {
     allowFailure: true,
-    cwd: workspace.root,
+    timeoutMs: QMD_PROBE_TIMEOUT_MS,
   });
-  const status = run("qmd", ["status"], {
+  const status = await runLocalQmd(workspace.root, ["status"], {
     allowFailure: true,
-    cwd: workspace.root,
+    timeoutMs: QMD_PROBE_TIMEOUT_MS,
   });
   checks.push(
     check(

@@ -1,34 +1,55 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { booleanOption, parseArgs, rejectUnknownOptions } from "../args.js";
+import {
+  booleanOption,
+  parseArgs,
+  rejectUnknownOptions,
+  stringOption,
+} from "../args.js";
 import { UsageError } from "../errors.js";
 import { loadWorkspace } from "../manifest.js";
-import { commandExists, displayCommand, run } from "../process.js";
+import { commandExists, displayCommand } from "../process.js";
+import {
+  assertQmdDestinations,
+  assertQmdConfig,
+  localQmdConfig,
+  qmdEnvironment,
+  QMD_PROBE_TIMEOUT_MS,
+  QMD_TIMEOUT_MS,
+  requireLocalQmdConfig,
+  runLocalQmd,
+  withQmdLock,
+} from "../qmd-runtime.js";
 import { qmdMask } from "../templates.js";
-import type { CommandContext, OutputStream, ProcessOptions } from "../types.js";
-import { assertCanonicalPathInside, sameCanonicalPath } from "../util.js";
+import type { CommandContext, OptionMap, OutputStream } from "../types.js";
+import { sameCanonicalPath } from "../util.js";
 
 export const MINIMUM_QMD_VERSION = "2.5.3";
 const SUPPORTED_QMD_MAJOR = 2;
+const TIMEOUT_OPTION = "timeout-seconds";
 
 export const QMD_HELP = `Usage:
-  braingraph qmd configure [directory] [--no-embed] [--dry-run]
-  braingraph qmd refresh [directory] [--embed] [--dry-run]
+  braingraph qmd configure [directory] [--no-embed] [--timeout-seconds 600] [--dry-run]
+  braingraph qmd refresh [directory] [--embed] [--timeout-seconds 600] [--dry-run]
+  braingraph qmd search|query [directory] --text <query> [--limit 10]
+  braingraph qmd get [directory] --text qmd://<collection>/<document>
 
 configure creates a workspace-local QMD index, registers the vault collection,
 installs QMD's canonical agent skill into the workspace .agents/skills catalog,
 adds or updates workspace-purpose context, indexes Markdown, and embeds by default.
 refresh updates only that local index and embeds only when --embed is supplied.
-Dry runs remain available before QMD is installed.`;
+Mutations use a per-workspace lock and a per-command timeout (1-3600 seconds).
+Retrieval is restricted to the manifest collection; index overrides are rejected.
+Dry runs remain available before QMD is installed and do not acquire a lock.`;
 
 /** Registers and initially indexes the configured QMD collection. */
-export function qmdConfigureCommand(
+export async function qmdConfigureCommand(
   tokens: readonly string[],
   context: CommandContext = {},
-): number {
+): Promise<number> {
   const { positionals, options } = parseArgs(tokens);
-  rejectUnknownOptions(options, ["embed", "dry-run", "help"]);
+  rejectUnknownOptions(options, ["embed", TIMEOUT_OPTION, "dry-run", "help"]);
   const output = context.output ?? process.stdout;
   if (booleanOption(options, "help")) {
     output.write(`${QMD_HELP}\n`);
@@ -38,10 +59,13 @@ export function qmdConfigureCommand(
     throw new UsageError("qmd configure accepts at most one directory");
   const workspace = loadWorkspace(positionals[0] ?? process.cwd());
   assertQmdDestinations(workspace.root, true);
+  assertQmdConfig(workspace.root);
+  qmdEnvironment(workspace.root);
   const dryRun = booleanOption(options, "dry-run");
   const qmdAvailable = commandExists("qmd");
   if (!dryRun && !qmdAvailable) ensureQmd();
-  if (qmdAvailable) assertSupportedQmdVersion(workspace.root);
+  if (qmdAvailable) await assertSupportedQmdVersion(workspace.root);
+  const timeoutMs = timeoutOption(options);
   const embed = booleanOption(options, "embed", true);
   const qmd = workspace.manifest.knowledge.qmd;
   const vault = path.join(
@@ -49,63 +73,79 @@ export function qmdConfigureCommand(
     workspace.manifest.knowledge.directory,
   );
   const mask = qmdMask(qmd.include);
-  const hasLocalIndex = localQmdConfig(workspace.root) !== undefined;
-  if (!hasLocalIndex) {
-    executeOrPrint("qmd", ["init"], dryRun, output, workspace.root);
-  }
+  const configure = async (): Promise<void> => {
+    const hasLocalIndex = localQmdConfig(workspace.root) !== undefined;
+    if (!hasLocalIndex) {
+      await executeOrPrint(
+        ["init"],
+        dryRun,
+        output,
+        workspace.root,
+        timeoutMs,
+        true,
+      );
+      if (!dryRun) requireLocalQmdConfig(workspace.root);
+    }
 
-  const existing =
-    qmdAvailable && hasLocalIndex
-      ? run("qmd", ["collection", "show", qmd.collection], {
-          allowFailure: true,
-          cwd: workspace.root,
-        })
-      : undefined;
-  if (existing?.status === 0) {
-    assertMatchingCollection(existing.stdout, vault, mask, qmd.collection);
-    output.write(`QMD collection already matches: ${qmd.collection}\n`);
-  } else {
-    executeOrPrint(
-      "qmd",
-      ["collection", "add", vault, "--name", qmd.collection, "--mask", mask],
+    const existing =
+      qmdAvailable && hasLocalIndex
+        ? await runLocalQmd(
+            workspace.root,
+            ["collection", "show", qmd.collection],
+            {
+              allowFailure: true,
+              timeoutMs: QMD_PROBE_TIMEOUT_MS,
+            },
+          )
+        : undefined;
+    if (existing?.status === 0) {
+      assertMatchingCollection(existing.stdout, vault, mask, qmd.collection);
+      output.write(`QMD collection already matches: ${qmd.collection}\n`);
+    } else {
+      await executeOrPrint(
+        ["collection", "add", vault, "--name", qmd.collection, "--mask", mask],
+        dryRun,
+        output,
+        workspace.root,
+        timeoutMs,
+      );
+    }
+
+    await executeOrPrint(
+      [
+        "context",
+        "add",
+        `qmd://${qmd.collection}`,
+        workspace.manifest.workspace.description,
+      ],
       dryRun,
       output,
       workspace.root,
+      timeoutMs,
     );
-  }
-
-  executeOrPrint(
-    "qmd",
-    [
-      "context",
-      "add",
-      `qmd://${qmd.collection}`,
-      workspace.manifest.workspace.description,
-    ],
-    dryRun,
-    output,
-    workspace.root,
-  );
-  ensureQmdSkill(workspace.root, dryRun, output);
-  executeOrPrint("qmd", ["update"], dryRun, output, workspace.root);
-  if (embed)
-    executeOrPrint(
-      "qmd",
-      ["embed", "-c", qmd.collection],
-      dryRun,
-      output,
-      workspace.root,
-    );
+    await ensureQmdSkill(workspace.root, dryRun, output, timeoutMs);
+    await executeOrPrint(["update"], dryRun, output, workspace.root, timeoutMs);
+    if (embed)
+      await executeOrPrint(
+        ["embed", "-c", qmd.collection],
+        dryRun,
+        output,
+        workspace.root,
+        timeoutMs,
+      );
+  };
+  if (dryRun) await configure();
+  else await withQmdLock(workspace.root, "configure", configure);
   return 0;
 }
 
 /** Refreshes an existing QMD index and optionally its embeddings. */
-export function qmdRefreshCommand(
+export async function qmdRefreshCommand(
   tokens: readonly string[],
   context: CommandContext = {},
-): number {
+): Promise<number> {
   const { positionals, options } = parseArgs(tokens);
-  rejectUnknownOptions(options, ["embed", "dry-run", "help"]);
+  rejectUnknownOptions(options, ["embed", TIMEOUT_OPTION, "dry-run", "help"]);
   const output = context.output ?? process.stdout;
   if (booleanOption(options, "help")) {
     output.write(`${QMD_HELP}\n`);
@@ -115,31 +155,39 @@ export function qmdRefreshCommand(
     throw new UsageError("qmd refresh accepts at most one directory");
   const workspace = loadWorkspace(positionals[0] ?? process.cwd());
   assertQmdDestinations(workspace.root, false);
+  qmdEnvironment(workspace.root);
   const dryRun = booleanOption(options, "dry-run");
   if (!dryRun) ensureQmd();
-  if (commandExists("qmd")) assertSupportedQmdVersion(workspace.root);
-  if (localQmdConfig(workspace.root) === undefined) {
-    throw new UsageError(
-      "workspace-local QMD index is not configured; run braingraph qmd configure first",
-    );
-  }
-  executeOrPrint("qmd", ["update"], dryRun, output, workspace.root);
-  if (booleanOption(options, "embed")) {
-    executeOrPrint(
-      "qmd",
-      ["embed", "-c", workspace.manifest.knowledge.qmd.collection],
-      dryRun,
-      output,
-      workspace.root,
-    );
-  }
+  if (commandExists("qmd")) await assertSupportedQmdVersion(workspace.root);
+  requireLocalQmdConfig(workspace.root);
+  const timeoutMs = timeoutOption(options);
+  const refresh = async (): Promise<void> => {
+    await executeOrPrint(["update"], dryRun, output, workspace.root, timeoutMs);
+    if (booleanOption(options, "embed")) {
+      await executeOrPrint(
+        ["embed", "-c", workspace.manifest.knowledge.qmd.collection],
+        dryRun,
+        output,
+        workspace.root,
+        timeoutMs,
+      );
+    }
+  };
+  if (dryRun) await refresh();
+  else await withQmdLock(workspace.root, "refresh", refresh);
   return 0;
 }
 
 /** Returns the installed QMD version when it satisfies Braingraph's contract. */
-export function supportedQmdVersion(cwd: string): string | undefined {
+export async function supportedQmdVersion(
+  cwd: string,
+): Promise<string | undefined> {
   if (!commandExists("qmd")) return undefined;
-  const result = run("qmd", ["--version"], { allowFailure: true, cwd });
+  const result = await runLocalQmd(cwd, ["--version"], {
+    allowFailure: true,
+    allowUnconfigured: true,
+    timeoutMs: QMD_PROBE_TIMEOUT_MS,
+  });
   if (result.status !== 0) return undefined;
   const match = /qmd\s+(\d+)\.(\d+)\.(\d+)/i.exec(result.stdout);
   if (match === null) return undefined;
@@ -157,25 +205,20 @@ export function supportedQmdVersion(cwd: string): string | undefined {
   return version.join(".");
 }
 
-function assertSupportedQmdVersion(cwd: string): void {
-  if (supportedQmdVersion(cwd) === undefined) {
+async function assertSupportedQmdVersion(cwd: string): Promise<void> {
+  if ((await supportedQmdVersion(cwd)) === undefined) {
     throw new UsageError(
       `QMD ${MINIMUM_QMD_VERSION} or newer within major version ${String(SUPPORTED_QMD_MAJOR)} is required`,
     );
   }
 }
 
-function localQmdConfig(workspaceRoot: string): string | undefined {
-  return ["index.yml", "index.yaml"]
-    .map((name) => path.join(workspaceRoot, ".qmd", name))
-    .find((candidate) => fs.existsSync(candidate));
-}
-
-function ensureQmdSkill(
+async function ensureQmdSkill(
   workspaceRoot: string,
   dryRun: boolean,
   output: OutputStream,
-): void {
+  timeoutMs: number,
+): Promise<void> {
   const skill = path.join(
     workspaceRoot,
     ".agents",
@@ -203,8 +246,8 @@ function ensureQmdSkill(
     `${dryRun ? "[dry-run] " : ""}${displayCommand("qmd", ["skill", "install"])}\n`,
   );
   if (dryRun) return;
-  const result = run("qmd", ["skill", "install"], {
-    cwd: workspaceRoot,
+  const result = await runLocalQmd(workspaceRoot, ["skill", "install"], {
+    timeoutMs,
     allowFailure: true,
   });
   output.write(result.stdout);
@@ -238,20 +281,21 @@ function ensureQmd(): void {
     );
 }
 
-function executeOrPrint(
-  command: string,
+async function executeOrPrint(
   args: readonly string[],
   dryRun: boolean,
   output: OutputStream,
-  cwd?: string,
-): void {
-  output.write(
-    `${dryRun ? "[dry-run] " : ""}${displayCommand(command, args)}\n`,
-  );
+  cwd: string,
+  timeoutMs: number,
+  allowUnconfigured = false,
+): Promise<void> {
+  output.write(`${dryRun ? "[dry-run] " : ""}${displayCommand("qmd", args)}\n`);
   if (!dryRun) {
-    const processOptions: ProcessOptions = { stdio: "inherit" };
-    if (cwd !== undefined) processOptions.cwd = cwd;
-    run(command, args, processOptions);
+    await runLocalQmd(cwd, args, {
+      stdio: "inherit",
+      timeoutMs,
+      allowUnconfigured,
+    });
   }
 }
 
@@ -274,27 +318,104 @@ function assertMatchingCollection(
   }
 }
 
-function assertQmdDestinations(
-  workspaceRoot: string,
-  includeSkill: boolean,
-): void {
-  assertCanonicalPathInside(
-    workspaceRoot,
-    path.join(workspaceRoot, ".qmd"),
-    "QMD workspace state",
+function timeoutOption(options: OptionMap): number {
+  return (
+    integerOption(options, TIMEOUT_OPTION, QMD_TIMEOUT_MS / 1000, 3600) * 1000
   );
-  for (const name of ["index.yml", "index.yaml"]) {
-    assertCanonicalPathInside(
-      workspaceRoot,
-      path.join(workspaceRoot, ".qmd", name),
-      "QMD index destination",
+}
+
+function integerOption(
+  options: OptionMap,
+  name: string,
+  fallback: number,
+  maximum: number,
+): number {
+  const value = stringOption(options, name, String(fallback));
+  const number = Number(value);
+  if (
+    !/^\d+$/.test(value) ||
+    !Number.isSafeInteger(number) ||
+    number < 1 ||
+    number > maximum
+  ) {
+    throw new UsageError(
+      `--${name} must be an integer between 1 and ${String(maximum)}`,
     );
   }
-  if (includeSkill) {
-    assertCanonicalPathInside(
-      workspaceRoot,
-      path.join(workspaceRoot, ".agents", "skills", "qmd", "SKILL.md"),
-      "QMD skill destination",
-    );
+  return number;
+}
+
+/** Searches the selected brain's declared collection without global index fallback. */
+export async function qmdSearchCommand(
+  tokens: readonly string[],
+  context: CommandContext = {},
+): Promise<number> {
+  return await retrievalCommand("search", tokens, context);
+}
+
+/** Runs hybrid retrieval within the selected brain's declared collection. */
+export async function qmdQueryCommand(
+  tokens: readonly string[],
+  context: CommandContext = {},
+): Promise<number> {
+  return await retrievalCommand("query", tokens, context);
+}
+
+/** Retrieves a document only from the selected brain's declared collection URI. */
+export async function qmdGetCommand(
+  tokens: readonly string[],
+  context: CommandContext = {},
+): Promise<number> {
+  return await retrievalCommand("get", tokens, context);
+}
+
+async function retrievalCommand(
+  command: "search" | "query" | "get",
+  tokens: readonly string[],
+  context: CommandContext,
+): Promise<number> {
+  const { positionals, options } = parseArgs(tokens);
+  rejectUnknownOptions(
+    options,
+    command === "get" ? ["text", "help"] : ["text", "limit", "help"],
+  );
+  const output = context.output ?? process.stdout;
+  if (booleanOption(options, "help")) {
+    output.write(`${QMD_HELP}\n`);
+    return 0;
   }
+  if (positionals.length > 1)
+    throw new UsageError(`qmd ${command} accepts at most one directory`);
+  const workspace = loadWorkspace(positionals[0] ?? process.cwd());
+  requireLocalQmdConfig(workspace.root);
+  qmdEnvironment(workspace.root);
+  await assertSupportedQmdVersion(workspace.root);
+  const value = stringOption(options, "text");
+  if (!value?.trim() || value.startsWith("-") || /[\0\r\n]/.test(value))
+    throw new UsageError(
+      "--text requires a nonempty query or document URI, not a flag",
+    );
+  const collection = workspace.manifest.knowledge.qmd.collection;
+  if (
+    command === "get" &&
+    (!value.startsWith(`qmd://${collection}/`) ||
+      /[?#\\]/.test(value) ||
+      value.split("/").some((segment) => segment === "." || segment === "..") ||
+      value === `qmd://${collection}/`)
+  )
+    throw new UsageError(`document URI must belong to qmd://${collection}/`);
+  const args =
+    command === "get"
+      ? [command, value]
+      : [
+          command,
+          value,
+          "-c",
+          collection,
+          "-n",
+          String(integerOption(options, "limit", 10, 200)),
+        ];
+  const result = await runLocalQmd(workspace.root, args);
+  output.write(result.stdout);
+  return 0;
 }

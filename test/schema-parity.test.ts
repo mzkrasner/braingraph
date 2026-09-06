@@ -6,6 +6,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { test } from "vitest";
 
 import { createManifest, validateManifest } from "../src/manifest.js";
+import type { ExternalSystem } from "../src/types.js";
 
 import { parseJsonObject, repositoryRoot } from "./helpers.js";
 
@@ -91,4 +92,55 @@ test("schema documents runtime-only external identifier uniqueness", () => {
     JSON.stringify(schema),
     /External-system id uniqueness is enforced by the runtime validator/,
   );
+});
+
+test("both validators accept additive identity constraints and reject malformed bindings", () => {
+  const system: ExternalSystem = {
+    id: "mail",
+    name: "Mail",
+    status: "active",
+    roles: ["source"],
+    owns: ["correspondence"],
+    identifiers: ["message ID"],
+    access: { read: "connector", write: "prohibited" },
+    freshness: "verify-live",
+    capture: "summarize",
+    sensitivity: "private",
+    fallback: "Stop on an unresolved account.",
+  };
+  for (const identity of [
+    undefined,
+    { account: "research@example.invalid" },
+    { tenant: "tenant-a", principal: "user-a" },
+  ]) {
+    const candidate = validManifest();
+    candidate.externalSystems = [
+      { ...system, ...(identity === undefined ? {} : { identity }) },
+    ];
+    assert.deepEqual(validateManifest(candidate), []);
+    assert.equal(
+      validateSchema(candidate),
+      true,
+      JSON.stringify(validateSchema.errors),
+    );
+  }
+  for (const identity of [
+    {},
+    [],
+    null,
+    { account: "" },
+    { tenant: " " },
+    { principal: " leading-space" },
+    { account: "trailing-space " },
+    { account: "one\ntwo" },
+    { account: "control\u0000character" },
+    { token: "not-a-real-credential" },
+    { account: 1 },
+  ]) {
+    const candidate = validManifest();
+    candidate.externalSystems = [{ ...system }];
+    assert.ok(candidate.externalSystems[0]);
+    Reflect.set(candidate.externalSystems[0], "identity", identity);
+    assertRejectedByBoth(candidate);
+  }
 });

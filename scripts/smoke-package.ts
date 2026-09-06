@@ -55,8 +55,29 @@ try {
     consumer,
   );
   execute(process.execPath, [cli, "doctor", workspace, "--json"], consumer);
+  execute(
+    process.execPath,
+    [cli, "knowledge", "lint", workspace, "--json"],
+    consumer,
+  );
+  const second = path.join(temporary, "second-brain");
+  execute(
+    process.execPath,
+    [cli, "init", second, "--name", "Other Packaged Brain"],
+    workspace,
+  );
+  execute(process.execPath, [cli, "knowledge", "lint", workspace], second);
   assert.ok(fs.existsSync(path.join(workspace, "braingraph.json")));
   assert.ok(fs.existsSync(path.join(workspace, "Knowledge", "Start Here.md")));
+  assert.ok(
+    fs.existsSync(
+      path.join(workspace, ".agents", "skills", "braingraph-query", "SKILL.md"),
+    ),
+  );
+  assert.ok(
+    !fs.existsSync(path.join(consumer, "node_modules", "yaml")),
+    "YAML must be bundled, not installed as a consumer dependency",
+  );
   process.stdout.write("Packed CLI smoke test passed.\n");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
@@ -67,7 +88,13 @@ function execute(
   args: readonly string[],
   cwd: string,
 ): string {
-  return run(command, args, { cwd }).stdout;
+  return run(command, args, {
+    cwd,
+    env: {
+      ...process.env,
+      npm_config_cache: path.join(temporary, "npm-cache"),
+    },
+  }).stdout;
 }
 
 function parsePackOutput(value: string): { filename: string } {

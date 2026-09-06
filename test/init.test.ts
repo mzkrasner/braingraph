@@ -27,7 +27,7 @@ test("init creates an Obsidian and QMD-ready knowledge workspace", async () => {
   assert.equal(result.status, 0, result.stderr);
   const manifest = readWorkspaceManifest(workspace);
   assert.equal(manifest.knowledge.obsidian.enabled, true);
-  assert.equal(manifest.templateVersion, 1);
+  assert.equal(manifest.templateVersion, 2);
   assert.equal(manifest.workspace.scope, "project");
   assert.equal(manifest.workspace.sensitivity, "private");
   assert.deepEqual(manifest.knowledge.maintenance, {
@@ -96,6 +96,87 @@ test("init is idempotent and preserves user-authored files", async () => {
   assert.equal(second.status, 0, second.stderr);
   assert.equal(fs.readFileSync(index, "utf8"), "# My curated index\n");
   assert.match(second.stdout, /preserve file/);
+});
+
+test("init installs independent canonical skills and preserves local edits", async () => {
+  const parent = temporaryDirectory();
+  const first = path.join(parent, "cedar");
+  const second = path.join(parent, "maple");
+  assert.equal(
+    (
+      await runCli([
+        "init",
+        first,
+        "--name",
+        "Cedar",
+        "--knowledge-dir",
+        "notes/vault",
+      ])
+    ).status,
+    0,
+  );
+  assert.equal((await runCli(["init", second, "--name", "Maple"])).status, 0);
+  const skillNames = [
+    "braingraph-ingest",
+    "braingraph-query",
+    "braingraph-maintain",
+  ];
+  for (const name of skillNames) {
+    const firstSkill = path.join(first, ".agents", "skills", name, "SKILL.md");
+    const secondSkill = path.join(
+      second,
+      ".agents",
+      "skills",
+      name,
+      "SKILL.md",
+    );
+    const content = fs.readFileSync(firstSkill, "utf8");
+    assert.ok(content.includes(`name: ${name}\n`));
+    assert.ok(content.includes("notes/vault/AGENTS.md"));
+    assert.ok(!content.includes("{{KNOWLEDGE_DIR}}"));
+    assert.ok(
+      fs.readFileSync(secondSkill, "utf8").includes("Knowledge/AGENTS.md"),
+    );
+  }
+  const customSkill = path.join(
+    first,
+    ".agents",
+    "skills",
+    "braingraph-query",
+    "SKILL.md",
+  );
+  fs.appendFileSync(customSkill, "\nLocal approved workflow extension.\n");
+  const preimage = fs.readFileSync(customSkill, "utf8");
+  assert.equal((await runCli(["init", first])).status, 0);
+  assert.equal(fs.readFileSync(customSkill, "utf8"), preimage);
+  assert.ok(!fs.existsSync(path.join(first, "repositories")));
+  assert.ok(!fs.existsSync(path.join(first, ".claude", "skills")));
+  const start = fs.readFileSync(
+    path.join(first, "notes", "vault", "Start Here.md"),
+    "utf8",
+  );
+  assert.ok(start.includes("../../braingraph.json"));
+  assert.ok(
+    fs.existsSync(
+      path.join(first, "notes", "vault", "_templates", "Decision.md"),
+    ),
+  );
+});
+
+test("init rejects a skill catalog routed into a different brain before writing", async () => {
+  const parent = temporaryDirectory();
+  const workspace = path.join(parent, "cedar");
+  const neighbor = path.join(parent, "maple");
+  fs.mkdirSync(workspace);
+  fs.mkdirSync(neighbor);
+  const sentinel = path.join(neighbor, "untouched.md");
+  fs.writeFileSync(sentinel, "Maple only.\n");
+  fs.symlinkSync(neighbor, path.join(workspace, ".agents"), "junction");
+  const result = await runCli(["init", workspace, "--name", "Cedar"]);
+  assert.notEqual(result.status, 0);
+  assert.ok(!fs.existsSync(path.join(workspace, "braingraph.json")));
+  assert.deepEqual(fs.readdirSync(neighbor), ["untouched.md"]);
+  assert.equal(fs.readFileSync(sentinel, "utf8"), "Maple only.\n");
 });
 
 test("init refuses a conflicting existing manifest", async () => {

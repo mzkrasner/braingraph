@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { UsageError } from "./errors.js";
 import { readJson } from "./files.js";
+import { validateSystemIdentity } from "./system-identity.js";
 import type {
   ExternalSystem,
   LoadedWorkspace,
@@ -21,7 +22,7 @@ import {
 
 export const MANIFEST_NAME = "braingraph.json";
 export const SCHEMA_VERSION = 1;
-export const TEMPLATE_VERSION = 1;
+export const TEMPLATE_VERSION = 2;
 
 const PROFILES: readonly WorkspaceProfile[] = ["knowledge", "software"];
 const WORKSPACE_SCOPES: readonly WorkspaceScope[] = [
@@ -389,6 +390,7 @@ function validateExternalSystem(
       "roles",
       "owns",
       "identifiers",
+      "identity",
       "access",
       "writeScope",
       "freshness",
@@ -402,6 +404,14 @@ function validateExternalSystem(
   );
   const label = validateExternalSystemId(value.id, ids, errors);
   validateExternalSystemFields(value, label, errors);
+  if (value.identity !== undefined) {
+    errors.push(
+      ...validateSystemIdentity(
+        value.identity,
+        `external system ${label} identity`,
+      ),
+    );
+  }
   validateExternalSystemAccess(value.access, label, errors);
   validateExternalSystemEnums(value, label, errors);
 }

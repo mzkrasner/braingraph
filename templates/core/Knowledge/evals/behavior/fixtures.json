@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "brains": [
+    {
+      "directory": "cedar",
+      "name": "Cedar Studio",
+      "description": "Fictional studio's durable service and membership knowledge.",
+      "notes": "fixtures/cedar/Knowledge"
+    },
+    {
+      "directory": "maple",
+      "name": "Maple Club",
+      "description": "Fictional club's unrelated membership and delivery knowledge.",
+      "notes": "fixtures/maple/Knowledge"
+    }
+  ]
+}

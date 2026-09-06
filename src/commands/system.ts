@@ -16,6 +16,7 @@ import type {
   ExternalFreshness,
   ExternalReadAccess,
   ExternalSystem,
+  ExternalSystemIdentity,
   ExternalSystemRole,
   ExternalSystemStatus,
   ExternalWriteAccess,
@@ -50,6 +51,9 @@ const SYSTEM_OPTIONS = [
   "role",
   "owns",
   "identifier",
+  "expected-account",
+  "expected-tenant",
+  "expected-principal",
   "read",
   "write",
   WRITE_SCOPE_OPTION,
@@ -68,6 +72,9 @@ const CONTROL_OPTIONS = new Set(["workspace", "dry-run", "help"]);
 export const SYSTEM_HELP = `Usage:
   braingraph system add <id> --name <name> --role <role> --owns <description> --identifier <identity> --fallback <behavior> [options]
   braingraph system update <id> [options]
+  braingraph system bind <id> --connector <id> [--account <id>] [--tenant <id>] [--principal <id>] [options]
+  braingraph system status [id] [--workspace <directory>] [--json]
+  braingraph system check <id> --connector <id> [--account <id>] [--tenant <id>] [--principal <id>] [options]
 
 Options:
   --name <name>
@@ -77,6 +84,9 @@ Options:
                              repeat or comma-separate values
   --owns <description>       Repeat or comma-separate values
   --identifier <identity>    Stable record ID or URL rule; repeat as needed
+  --expected-account <id>    Expected non-secret provider account; --expected-account= clears it
+  --expected-tenant <id>     Expected non-secret organization/tenant
+  --expected-principal <id>  Expected non-secret authenticated user/service principal
   --read <mode>              none | manual | connector (default: manual)
   --write <mode>             prohibited | human-approval | delegated (default: human-approval)
   --write-scope <scope>      Required only when write mode is delegated
@@ -89,7 +99,13 @@ Options:
   --dry-run
 
 Update preserves omitted values. Mark a retired integration inactive instead of
-deleting its provenance contract.`;
+deleting its provenance contract. Identity constraints match exactly, including case.
+
+Bind records only a workspace-local connector mapping; it does not authenticate.
+Check requires fresh identity observations from that connector, not copied saved
+values. Unresolved or mismatched identity blocks read, synchronization, and write.
+Passing an identity check never grants access or replaces human write approval.
+Run system bind|status|check --help for binding command details.`;
 
 /** Registers a tool-neutral external-system authority and access contract. */
 export function systemAddCommand(
@@ -218,6 +234,7 @@ function buildSystem(
     existing?.writeScope,
   );
   const notes = optionalOption(options, "notes", existing?.notes);
+  const identity = identityOptions(options, existing?.identity);
   const write = allowedOption<ExternalWriteAccess>(
     options,
     "write",
@@ -248,6 +265,7 @@ function buildSystem(
     roles,
     owns,
     identifiers,
+    ...(identity === undefined ? {} : { identity }),
     access: {
       read: allowedOption<ExternalReadAccess>(
         options,
@@ -280,6 +298,29 @@ function buildSystem(
     ...(notes === undefined ? {} : { notes }),
   };
 }
+
+function identityOptions(
+  options: OptionMap,
+  existing?: ExternalSystemIdentity,
+): ExternalSystemIdentity | undefined {
+  const identity: ExternalSystemIdentity = {};
+  const fields = [
+    ["account", existing?.account],
+    ["tenant", existing?.tenant],
+    ["principal", existing?.principal],
+  ] as const;
+  for (const [field, previous] of fields) {
+    const value = optionalOption(options, `expected-${field}`, previous);
+    if (value !== undefined) Reflect.set(identity, field, value);
+  }
+  return Object.keys(identity).length === 0 ? undefined : identity;
+}
+
+export {
+  systemBindCommand,
+  systemCheckCommand,
+  systemStatusCommand,
+} from "./system-binding.js";
 
 function writeValidatedManifestUpdate(
   file: string,

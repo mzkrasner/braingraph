@@ -14,6 +14,7 @@ Build the smallest workspace that satisfies the human's current needs while pres
    existing workspace, read `references/existing-workspace-adoption.md` before proposing changes.
 3. Establish only the missing decisions:
    - workspace name and location;
+   - other brains already present and which exact brain this setup may create or change (names alone are not identity);
    - a one-sentence durable purpose and intended scope: project, organization, professional domain, personal domain, or mixed;
    - the operational roots and representative directories where the human normally launches agents or performs work;
    - existing notes or sources to preserve;
@@ -29,10 +30,10 @@ Build the smallest workspace that satisfies the human's current needs while pres
 9. Show the consequential dry-run actions and resolve conflicts without overwriting existing files.
 10. Apply the approved commands: use `--execute` where the command requires it, and otherwise repeat without `--dry-run`.
 11. Configure the QMD collection and workspace-purpose context unless the user explicitly declines installation; keep the generated Markdown operational either way.
-12. Verify the generated cross-agent contract: each scoped `AGENTS.md` is canonical, each sibling `CLAUDE.md` contains only `@AGENTS.md`, and reusable project skills exist only under `.agents/skills`.
+12. Verify the generated cross-agent contract: each scoped `AGENTS.md` is canonical, each sibling `CLAUDE.md` contains only `@AGENTS.md`, and reusable project skills exist only under `.agents/skills`. Check the generated `braingraph-ingest`, `braingraph-query`, and `braingraph-maintain` skills can be read by each selected client, including the file-read fallback.
 13. Validate discovery from every representative working location in the approved matrix. Use a fresh-agent or equivalent read-only check to prove that the exact `braingraph.json`, workspace `AGENTS.md`, `Start Here.md`, and relevant repository hub can be located without relying on prior chat context or an unrelated global instruction.
 14. Offer a dry run of `braingraph obsidian open`, then open the generated `Start Here.md` only after approval.
-15. Run `braingraph doctor <workspace>` and report capabilities that remain unconfigured, including instruction-adapter drift or duplicate vendor skill names. Treat doctor as validation of registered artifacts, not proof that unregistered sibling worktrees or external launch locations can discover the workspace.
+15. Run `braingraph doctor <workspace>` and `braingraph knowledge lint <workspace>` and report capabilities that remain unconfigured, including instruction-adapter drift or duplicate vendor skill names. Treat doctor as setup-health validation, lint as deterministic note checks, and a fresh-agent exercise as a separate behavioral check. None proves the other layers passed. If authorized, complete the generated `Knowledge/evals/behavior/README.md` Obsidian editing/template/link round trip (substitute the configured knowledge directory); opening a URI alone is not success.
 16. Give the user the generated `Start Here.md` path and explain how agents will propose or apply durable updates at meaningful milestones under the persisted maintenance boundary.
 17. Review the completed setup for repeatable friction, unsupported assumptions, or behavior that did not generalize to the user's environment. When a likely Braingraph product gap remains after local diagnosis, read `references/product-feedback.md` and follow its duplicate-check, sanitization, approval, and issue-filing workflow.
 
@@ -40,6 +41,8 @@ Build the smallest workspace that satisfies the human's current needs while pres
 
 - Do not assume the user already has Obsidian or QMD installed. They are Braingraph defaults; detect them and obtain approval before installation.
 - Do not assume the user uses GitHub, Linear, Google Drive, or any other external system.
+- Multiple brains on one machine are normal. Give each its own manifest, knowledge root, local QMD state, connector bindings, and maintenance boundary. Never create a global active-brain default or search, migrate, copy, or refresh neighboring brains implicitly.
+- Before connector reads or synchronization, resolve the actual authenticated identity and match the declared account/tenant/principal. A stored binding or visible connector is not proof of current identity; unknown or mismatched identity blocks use and does not authorize trying another account.
 - Do not enable the software profile merely because the setup repository is software.
 - Do not place the workspace beside the user's actual work merely because that location is convenient. Either make the coordination root discoverable from normal launch locations or define explicit, non-duplicating adapters.
 - Do not assume that registering or bridging one checkout covers sibling Git worktrees, other clones, or directories outside that checkout.

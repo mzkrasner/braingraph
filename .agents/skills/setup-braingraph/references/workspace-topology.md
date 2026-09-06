@@ -13,6 +13,8 @@ Use this assessment before choosing where to initialize Braingraph. A valid setu
 
 The coordination root may also be an operational root, but do not assume that relationship.
 
+Multiple coordination roots on one machine are ordinary independent brains. Names and QMD collection labels are not machine-wide identity; each brain has its own manifest, canonical files, index configuration, and machine-local connector bindings. Inventory only the existence and boundaries of other brains relevant to setup, not their content. Do not introduce a machine-wide active-brain setting or make a shared parent silently load every brain's instructions.
+
 ## Read-Only Assessment
 
 Within the scope approved by the human:
@@ -36,6 +38,7 @@ Within the scope approved by the human:
 
 4. Determine how each supported client will discover the canonical instructions from each representative location. Account for both standing instructions and project skills.
 5. Identify unrelated or differently sensitive directory trees. Do not place broad parent instructions above them merely to make discovery convenient.
+6. Resolve the exact target brain for every representative location. If a location legitimately serves several brains, require explicit selection or a narrow routing adapter that asks when ambiguous; never choose the last-used brain or merge their source/account boundaries.
 
 Do not crawl unrelated home-directory content, move directories, or rewrite existing instructions during assessment.
 
@@ -82,3 +85,5 @@ After setup, validate every representative row from that working directory with 
 The result must not depend on prior conversation context, remembered absolute paths, or an unrelated global instruction.
 
 Run `braingraph doctor` as a separate artifact check. Doctor verifies registered workspace and attachment state; it does not prove discovery from locations that Braingraph does not model.
+
+When another brain exists, add a negative acceptance check: a request scoped to the new brain must not discover knowledge by searching that neighbor's index, read its connector account, or change its files. Test with isolated fictional copies or read-only access records; do not use private neighboring content as a fixture.

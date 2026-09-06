@@ -38,6 +38,20 @@ Compatibility begins only after a client reaches the canonical files. A workspac
 
 The setup skill requires a representative discovery matrix and fresh-agent checks for this reason. `braingraph doctor` verifies known instruction artifacts but cannot certify locations that are not represented in workspace state.
 
+## Workflow Skills And Multiple Brains
+
+Initialization installs `braingraph-query`, `braingraph-ingest`, and `braingraph-maintain` in the new brain's canonical `.agents/skills` catalog. The standing guides retain identity, ownership, safety boundaries, metadata meaning, and workflow routing; detailed procedures load only when needed. No account-wide skill catalog or global active-brain registry is created. The same skill name in two separate brains is normal: resolve the actual skill file and its workspace root before acting.
+
+Each brain has its own manifest, Obsidian vault, QMD state, connector bindings, and maintenance policy. A shared parent or routing adapter must not silently combine them. Cross-brain retrieval requires explicit scope, and citations and sensitivity must remain attributable to the source brain. Adding a skill catalog does not grant an agent access beyond its client's filesystem and connector controls.
+
+## Three Verification Layers
+
+1. `braingraph doctor <workspace>` checks registered setup artifacts and integration health.
+2. `braingraph knowledge lint <workspace>` checks deterministic note structure and references; parseable metadata is not proof that a statement is true.
+3. Fresh-agent scenarios test retrieval scope, evidence handling, decision states, and write boundaries. Initialization includes a reproducible fictional Cedar/Maple pack under `<knowledge-dir>/evals/behavior/`, with requests separated from the reviewer rubric. Keep those fixtures out of live knowledge indexes and use isolated temporary brains.
+
+For meaningful client changes, run representative cases with the actual client and record its version, evidence, and untested capabilities. Do not interpret fixture-file assertions as agent-behavior scores. Obsidian acceptance additionally requires a human editing round trip: insert a template, edit properties, rename a linked note, inspect persisted Markdown, and retrieve that note through the correct brain's index. The fixture guide includes this optional test; merely dispatching an `obsidian://` URI or finding valid JSON configuration does not prove it passed.
+
 ## Adapter Rules
 
 1. Put shared policy in the nearest canonical `AGENTS.md`.

@@ -12,7 +12,11 @@ import {
   rejectUnknownOptions,
   stringOption,
 } from "../src/args.js";
-import { createManifest, validateManifest } from "../src/manifest.js";
+import {
+  createManifest,
+  TEMPLATE_VERSION,
+  validateManifest,
+} from "../src/manifest.js";
 import { commandExists, displayCommand, run } from "../src/process.js";
 import {
   assertRelativePath,
@@ -71,7 +75,7 @@ test("manifest validation reports malformed workspace boundaries", () => {
   const invalid: unknown = {
     $schema: "./schema.json",
     schemaVersion: 2,
-    templateVersion: 2,
+    templateVersion: TEMPLATE_VERSION + 1,
     workspace: {
       name: "",
       slug: "Bad Slug",

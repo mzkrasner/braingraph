@@ -1,129 +1,39 @@
 # Second Brain Operating Guide
 
-This knowledge base is a maintained, agent-first wiki. Markdown is canonical. Treat it as a coherent graph of durable knowledge, not a pile of summaries.
+Markdown is canonical. This is one maintained graph of durable knowledge, not a transcript archive or an external-system mirror. The parent workspace guide and `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json` govern scope and permissions.
 
 ## Structure
 
-- `projects/` contains one canonical hub per initiative with a distinct outcome and lifecycle.
-- `domains/` contains durable areas of responsibility or inquiry without a defined completion state.
-- `wiki/` contains atomic, reusable knowledge pages and genuine concept hubs.
-- `raw/` contains unsynthesized source material; `raw/processed/` preserves successfully processed inputs.
-- `sources/` contains source identities, revision ledgers, provenance, and processing state rather than copied source content.
-- `reports/` contains sanitized, immutable dated snapshots and diagnostic reviews.
-- `evals/` contains retrieval fixtures. It is operational test data, not canonical knowledge.
-- `_templates/` contains page shapes and is not knowledge.
-- `index.md` is a curated navigation map.
-- `log.md` is the append-only knowledge-maintenance history.
+- `projects/`: one canonical hub per bounded initiative, outcome, and lifecycle.
+- `domains/`: enduring responsibilities or subjects without a completion state.
+- `wiki/`: reusable atomic knowledge and genuine concept hubs; decision records may live alongside the concepts they govern.
+- `raw/`: unsynthesized intake; `raw/processed/` preserves successfully processed inputs.
+- `sources/`: source identities, revision ledgers, provenance, and processing state, not copied source content.
+- `reports/`: sanitized immutable dated snapshots, never unstated current-state owners.
+- `evals/`: operational retrieval and behavior fixtures, not canonical knowledge.
+- `_templates/`: page shapes and metadata guidance, not knowledge.
+- `index.md`: curated navigation. `log.md`: append-only maintenance history.
 
-## Proactive Evolution And Write Boundary
+## Durable Knowledge And Provenance
 
-The graph should evolve alongside the work without becoming an unsolicited activity log.
+- Search before creating a page. Prefer updating an existing concept or adding a meaningful `[[wikilink]]` to inventing a category.
+- Preserve attribution, contradictions, exclusions, and uncertainty. Distinguish directly sourced evidence, a person's report, and agent inference; none silently becomes another.
+- Use source identity and revision where available. `observed_at` is the event or observation date, `retrieved_at` is when evidence was obtained, and `last_verified` is when the owning source actually verified the stated claim. `last_reviewed` dates local synthesis review and does not refresh external facts.
+- A fetched page does not verify every claim in a note. State `verification_scope` and `verification_limits`; use claim-level evidence in the body for mixed provenance. Never invent dates or mark a failed or indirect check as verification.
+- Flat metadata remains editable in Obsidian. Read `_templates/README.md` when creating or repairing metadata; omit optional unknown or inapplicable fields instead of filling them with today's date.
+- Record decisions as proposed, accepted, and implemented separately. Human acceptance is not implementation, and neither is authorization for an external action. Use `_templates/Decision.md` when a decision merits its own record; smaller decisions may remain in their project hub with the same distinctions.
+- Keep live roles, priorities, metrics, and execution status in their owning system; a dated snapshot may explain a durable decision. A project's coarse `status` is not a synchronized execution tracker.
 
-At the end of meaningful research, implementation, review, planning, or stakeholder work, check whether the session produced any of the following:
+## On-Demand Workflows
 
-- a durable decision or changed boundary;
-- a clarified workflow, system, term, policy, or relationship;
-- a new or revised authoritative source;
-- a contradiction, uncertainty, or stale claim that future work must see; or
-- reusable knowledge currently trapped in a temporary artifact or conversation.
+Load the full matching skill at `{{WORKSPACE_ROOT_RELATIVE}}/.agents/skills/`:
 
-Do not promote transient task status, raw conversation summaries, exhaustive ticket history, or speculative conclusions.
+- `braingraph-query/SKILL.md`: retrieve complete sources, answer with citations and freshness limits; no implied knowledge writes.
+- `braingraph-ingest/SKILL.md`: compare sources with this brain, apply scoped authorized synthesis, then update the source ledger.
+- `braingraph-maintain/SKILL.md`: diagnose structure, provenance, retrieval, and stale claims; apply only authorized changes.
 
-- When the human asked to ingest, document, update, or maintain knowledge, apply the scoped local Markdown changes after surfacing conflicts and exclusions.
-- During unrelated work, read `maintenance` in `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json`. In `proposal-first` mode, propose a compact packet with affected files, supported claims, sources, exclusions, and unresolved questions, then wait before writing.
-- In `delegated` mode, apply only routine local Markdown maintenance within the manifest's `delegatedScope`, report the files changed, and propose anything outside that scope.
-- External writes, destructive actions, disclosure changes, and new sensitivity boundaries always require their own authorization.
+Follow the manifest's maintenance policy at meaningful milestones. Surface durable decisions, clarified boundaries, changed source revisions, or important contradictions. Do not promote transient task status, raw conversation recaps, or speculative conclusions. Diagnostic requests do not authorize a rewrite.
 
-## Information Architecture
-
-Taxonomy is a claim about the world, not a filing convenience. Before adding a hierarchy, project, domain, hub, split, or merge, establish the evidence for its owner, outcome, lifecycle, and boundary.
-
-Use these roles:
-
-- **Project hub:** a bounded initiative with an intended outcome and decision cadence.
-- **Domain hub:** an ongoing responsibility or subject without a completion state.
-- **Concept hub:** an organizing idea that connects several meaningful subtopics without implying common ownership.
-- **Atomic page:** one reusable system, workflow, term, policy, principle, or idea.
-- **Source registry:** what was reviewed, at which source revision, and what changed.
-- **Dated report:** a sanitized immutable snapshot used as historical evidence, never as an unstated current-state owner.
-
-Before changing taxonomy:
-
-1. Search and retrieve the complete related pages.
-2. Inspect any authoritative external source that establishes the relationship.
-3. Decide whether the information updates an existing page, creates an atomic page, creates a project/domain, or only adds a cross-link.
-4. Prefer a new project when ownership, outcome, lifecycle, system boundary, or acceptance process differs.
-5. Prefer a conceptual link when only terminology, tooling, or subject matter is shared.
-6. Keep current roles, priorities, and metrics dated and sourced.
-7. When the structure is materially uncertain, present a taxonomy proposal and wait for human approval.
-
-Do not create parallel pages for aliases describing one concept. Do not collapse separate initiatives merely because they share a word or tool.
-
-## Sources And External Systems
-
-Read `{{WORKSPACE_ROOT_RELATIVE}}/braingraph.json` before using an external system. Its registry declares ownership, access, freshness, capture, and sensitivity.
-
-- Link and summarize when the external system should retain ownership.
-- Copy only when this workspace is explicitly intended to own the material.
-- Verify volatile claims in their live owner.
-- Record stable source identifiers and revisions when available.
-- If a connector is unavailable, report the gap and use an approved fallback; do not invent or silently substitute evidence.
-- A successful read does not authorize a write.
-
-## Project Hubs
-
-Each active or completed initiative should have exactly one canonical page under `projects/`. Use `_templates/Project.md`.
-
-Project pages synthesize objective, scope, decisions, open questions, knowledge links, and canonical sources. They must not mirror entire ticket backlogs, pull-request histories, message threads, or raw source documents.
-
-Keep volatile status out of durable prose. A project `status` is only a coarse lifecycle label, and `last_reviewed` dates the synthesis. Link to the live execution owner. When a dated snapshot materially explains a decision, save a sanitized report and label its date and source revision.
-
-## Domain Hubs
-
-Use `domains/` for responsibilities and areas that persist across multiple projects. A domain can link to related projects without claiming their execution state. Use `_templates/Domain.md`.
-
-## Ingestion
-
-When asked to ingest source material:
-
-1. Identify unprocessed sources and their stable identities or revisions.
-2. Read selected sources completely enough to avoid silent omission.
-3. Inspect directly linked authoritative material that materially supports or contradicts the durable claims.
-4. Classify content as durable, volatile, sensitive, duplicative, inaccessible, or out of scope.
-5. Search existing projects, domains, and wiki pages before creating anything.
-6. Determine which local changes are authorized by the current request or manifest maintenance policy.
-7. For anything not authorized, present a review packet describing proposed updates, conflicts, exclusions, affected files, and any taxonomy proposal.
-8. Apply authorized changes, stopping on unresolved conflicts or approval-gated boundaries.
-9. Update the source ledger and `log.md` only after authorized changes are applied successfully. Use one stable source ID and the exact revision, modified time, or content fingerprint available from the owner.
-10. Move local raw source files to `raw/processed/`; never delete them implicitly.
-
-Do not ingest credentials, sensitive personal records, regulated data, or volatile operational trackers merely because they are accessible.
-
-## Retrieval
-
-- Search for candidate pages, then retrieve complete relevant sections before making factual claims.
-- Cite underlying Markdown pages or external sources, never a search index as authority.
-- Separate sourced fact, existing interpretation, and new inference.
-- Surface conflicts, weak evidence, freshness concerns, and important gaps.
-- Save a new synthesis only when the human asks or clearly approves the write.
-- A direct request to ingest, update, document, or maintain this knowledge base is sufficient approval for the scoped local write; it is not approval for external side effects or taxonomy expansion.
+Taxonomy changes need evidence for owner, outcome, lifecycle, and boundary, followed by explicit approval. Shared terminology alone does not make two initiatives one project; aliases for one concept do not need parallel pages. Do not migrate unrelated history for cosmetic consistency.
 
 {{QMD_RETRIEVAL_SECTION}}
-
-## Knowledge Maintenance
-
-When linting the knowledge base, report contradictions, stale claims, orphans, broken links, duplicate pages, index drift, undeveloped concepts, unprocessed sources, and pages that combine unrelated ideas. Linting is diagnostic; do not reorganize knowledge without separate approval.
-
-Propose a maintenance pass when a major milestone closes, a source changes materially, retrieval repeatedly misses the right page, a project changes ownership or outcome, or several small inconsistencies accumulate. Do not impose calendar-based churn when there is no evidence of drift.
-
-Taxonomy changes are infrequent maintenance events. After an approved change, update only affected instructions, navigation, retrieval masks, and evaluation fixtures. Do not bulk-migrate unaffected history for cosmetic consistency.
-
-## Knowledge-Quality Rules
-
-- Preserve source attribution and uncertainty.
-- Use descriptive, stable filenames and meaningful `[[wikilinks]]`.
-- Keep metadata small and operationally useful.
-- Do not fabricate sources, dates, quotations, consensus, or relationships.
-- Keep project and domain hubs concise enough to orient a fresh agent.
-- Move reusable detail into atomic wiki pages.
-- Never place credentials or prohibited sensitive data in the knowledge base.

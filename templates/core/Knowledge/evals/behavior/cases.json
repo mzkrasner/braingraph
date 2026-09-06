@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "scoped-query",
+      "skill": "braingraph-query",
+      "allowedBrains": ["cedar"],
+      "request": "In Cedar Studio, is our membership verified and is the intake change implemented? Answer from this brain only. Don't update files."
+    },
+    {
+      "id": "mixed-provenance-ingest",
+      "skill": "braingraph-ingest",
+      "allowedBrains": ["cedar"],
+      "request": "Ingest the two selected Cedar sources into the existing Membership and Intake pages. You may update those pages, the source ledger, and maintenance log. Do not change taxonomy, move raw files, or contact anyone."
+    },
+    {
+      "id": "diagnostic-only",
+      "skill": "braingraph-maintain",
+      "allowedBrains": ["cedar"],
+      "request": "Audit Cedar's membership and intake knowledge for misleading evidence or stale claims. Report a scoped repair proposal without editing anything."
+    },
+    {
+      "id": "explicit-comparison",
+      "skill": "braingraph-query",
+      "allowedBrains": ["cedar", "maple"],
+      "request": "Compare the membership and intake decisions in Cedar Studio and Maple Club using their separate local notes. Identify evidence gaps. Do not copy content between brains or edit anything."
+    }
+  ]
+}

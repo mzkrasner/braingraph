@@ -59,6 +59,7 @@ detailed adoption contract lives in
 
 - `braingraph.json` owns workspace configuration and registered capabilities.
 - Ignored `braingraph.local.json` owns machine-local attachment paths and bridge choices. It must never become portable or canonical configuration.
+- Expected external account/tenant/principal constraints are portable; local connector bindings are per-brain entries in ignored `braingraph.local.json`, never credentials or proof of current authentication.
 - Workspace sensitivity is the baseline handling policy; source-specific rules may be stricter.
 - `knowledge.maintenance` owns the default proposal-first or narrowly delegated local-maintenance boundary.
 - `schemaVersion` owns manifest compatibility; `templateVersion` records the generated instruction and template contract.
@@ -73,8 +74,33 @@ detailed adoption contract lives in
 
 ## Evolution Rules
 
-Braingraph creates missing managed files but does not overwrite existing files during initialization. The first supported template contract is still version 1, so changes made before that baseline is declared stable update version 1 directly instead of inventing migrations for unused layouts. After a supported release, older `templateVersion` values remain loadable so `doctor` can report drift and a future migration command can present a reviewable plan. A migration may update managed templates only after distinguishing generated sections from human-authored content.
+Braingraph creates missing managed files but does not overwrite existing files during initialization. New workspaces use template contract 2. Older `templateVersion` values remain loadable; `doctor` reports drift without silently marking an upgrade complete. The [reviewable upgrade guide](upgrading.md) uses a separate comparison scaffold, narrow backups, and approved file-by-file merges that preserve human-authored content. It does not introduce an automatic migration engine.
 
 Workspace purpose, scope, external-system contracts, and repository configuration may evolve in the manifest. Retired external systems remain as inactive provenance records. Generated agents should surface durable maintenance candidates at meaningful milestones, but they must not turn ordinary work into exhaustive journaling or silently restructure the taxonomy.
 
 Source ingestion moves through explicit states: pending, proposed, applied, no-change, blocked, or out-of-scope. The source ledger advances only after the corresponding review or authorized knowledge change succeeds. Retrieval misses become small evaluation fixtures when they reveal a durable routing problem.
+
+## Multiple Independent Brains
+
+Multiple brains per machine are a core topology, not an exceptional setup. Each root
+owns a manifest, scoped governance, Markdown vault, local index, connector bindings, and
+maintenance lock/status. There is no global active-brain registry or automatic union index.
+The same application installation and model cache may serve several brains without
+sharing their sources, authentication choices, permissions, or search results.
+
+Commands with an explicit target resolve that target independently of the caller's
+working directory. Omitted targets use the current workspace only as a convenience;
+agents and scheduled invocations should supply the exact root. Search failures remain
+local failures. Cross-brain work is a separately scoped request and must preserve source
+attribution and the stricter applicable disclosure boundary.
+
+QMD calls are bounded, reject conflicting index/config environment overrides, normalize
+the child working directory, and require the selected local index configuration. Index
+mutations use a workspace-local exclusive lock. Scheduling is opt-in infrastructure, not
+authorization for inbox ingestion, external writes, or opportunity monitoring.
+
+## Verification Boundaries
+
+Setup diagnostics, deterministic note lint, fresh-agent behavior cases, and an Obsidian
+editing round trip answer different questions. Neither a populated index nor valid YAML
+proves sourced claims correct. See [knowledge quality](knowledge-quality.md).

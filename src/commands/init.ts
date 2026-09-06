@@ -355,6 +355,12 @@ function writeWorkspace(
     replacements: knowledgeReplacements(proposed),
     plan,
   });
+  renderTemplateTree({
+    source: path.join(TEMPLATE_ROOT, "core", "skills"),
+    destination: path.join(root, ".agents", "skills"),
+    replacements: knowledgeReplacements(proposed),
+    plan,
+  });
 
   for (const relative of EMPTY_DIRECTORIES) {
     plan.ensureDirectory(path.join(knowledgeRoot, relative));
@@ -383,6 +389,7 @@ function assertWorkspaceDestinations(
     path.join(root, "schemas"),
     path.join(root, "AGENTS.md"),
     path.join(root, "CLAUDE.md"),
+    path.join(root, ".agents"),
     path.join(root, manifest.knowledge.directory),
   ];
   if (manifest.workspace.profiles.includes(SOFTWARE_PROFILE)) {
@@ -412,5 +419,5 @@ async function runOptionalSetup(
   const { toolsInstallCommand } = await import("./tools.js");
   const { qmdConfigureCommand } = await import("./qmd.js");
   if (installTools) toolsInstallCommand([root, "--execute"], context);
-  if (configure) qmdConfigureCommand([root], context);
+  if (configure) await qmdConfigureCommand([root], context);
 }

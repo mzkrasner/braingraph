@@ -1,9 +1,13 @@
 import { doctorCommand, DOCTOR_HELP } from "./commands/doctor.js";
 import { initCommand, INIT_HELP } from "./commands/init.js";
+import { knowledgeLintCommand, KNOWLEDGE_HELP } from "./commands/knowledge.js";
 import { obsidianOpenCommand, OBSIDIAN_HELP } from "./commands/obsidian.js";
 import {
   qmdConfigureCommand,
+  qmdGetCommand,
+  qmdQueryCommand,
   qmdRefreshCommand,
+  qmdSearchCommand,
   QMD_HELP,
 } from "./commands/qmd.js";
 import {
@@ -14,6 +18,9 @@ import {
 } from "./commands/repo.js";
 import {
   systemAddCommand,
+  systemBindCommand,
+  systemCheckCommand,
+  systemStatusCommand,
   systemUpdateCommand,
   SYSTEM_HELP,
 } from "./commands/system.js";
@@ -38,10 +45,11 @@ const HELP = `Braingraph - agent-first second-brain workspace scaffolding
 Usage:
   braingraph init [directory] [options]
   braingraph doctor [directory] [--json]
+  braingraph knowledge lint [directory] [--json]
   braingraph tools install [directory] [options]
   braingraph obsidian open [directory] [options]
-  braingraph qmd configure|refresh [directory] [options]
-  braingraph system add|update <id> [options]
+  braingraph qmd configure|refresh|search|query|get [directory] [options]
+  braingraph system add|update|bind|check|status [id] [options]
   braingraph repo add|attach|remove <id> [options]
   braingraph worktree new|inspect|remove <repository> <name> [options]
 
@@ -57,8 +65,15 @@ const NESTED_COMMANDS = new Map<string, CommandHandler>([
   ["obsidian open", obsidianOpenCommand],
   ["qmd configure", qmdConfigureCommand],
   ["qmd refresh", qmdRefreshCommand],
+  ["qmd search", qmdSearchCommand],
+  ["qmd query", qmdQueryCommand],
+  ["qmd get", qmdGetCommand],
+  ["knowledge lint", knowledgeLintCommand],
   ["system add", systemAddCommand],
   ["system update", systemUpdateCommand],
+  ["system bind", systemBindCommand],
+  ["system check", systemCheckCommand],
+  ["system status", systemStatusCommand],
   ["repo add", repoAddCommand],
   ["repo attach", repoAttachCommand],
   ["repo remove", repoRemoveCommand],
@@ -70,6 +85,7 @@ const NESTED_COMMANDS = new Map<string, CommandHandler>([
 const COMMAND_HELP = new Map<string, string>([
   ["init", INIT_HELP],
   ["doctor", DOCTOR_HELP],
+  ["knowledge", KNOWLEDGE_HELP],
   ["tools", TOOLS_HELP],
   ["obsidian", OBSIDIAN_HELP],
   ["qmd", QMD_HELP],
